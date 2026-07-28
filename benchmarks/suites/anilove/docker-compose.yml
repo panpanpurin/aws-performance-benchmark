@@ -1,5 +1,4 @@
-# AniLove suite under benchmarks/suites/anilove
-# Shared stack: ../../stack  |  ports: 9090 / 3002 / 9092-9094
+# AniLove suite: ports 9090 / 3002 / 9092-9094
 name: anilove-benchmark
 
 include:

@@ -14,4 +14,5 @@ Each folder has `Dockerfile` (long-running) and `Dockerfile.lambda`.
 
 - Local stack: [`local/docker-compose.yml`](../local/docker-compose.yml) (`make local-up`).
 - AWS deploy matrix: [`docs/DEPLOY.md`](../docs/DEPLOY.md).
+- Infrastructure: [`docs/INFRASTRUCTURE.md`](../docs/INFRASTRUCTURE.md), [`terraform/`](../terraform/).
 - Load tests: [`benchmarks/suites/`](../benchmarks/suites/). Ports: [`benchmarks/docs/PORTS.md`](../benchmarks/docs/PORTS.md).

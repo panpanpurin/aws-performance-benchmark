@@ -1,22 +1,26 @@
-# =========================
-# Secrets & local config
-# =========================
+# Secrets and local config
 .env
 .env.*
 !.env.example
 *.pem
 *.key
-credentials*
-*secret*
+*credentials*
+*.secret
+secrets.json
+secrets.yaml
+
+# Terraform local state and vars (module source under terraform/modules/ is tracked)
 terraform/terraform.tfvars
 terraform/*.auto.tfvars
 terraform/.terraform/
 terraform/*.tfstate
 terraform/*.tfstate.*
+terraform/generated/
+terraform/bootstrap/.terraform/
+terraform/bootstrap/*.tfstate
+terraform/bootstrap/*.tfstate.*
 
-# =========================
 # Node / npm
-# =========================
 node_modules/
 npm-debug.log*
 yarn-debug.log*
@@ -31,9 +35,7 @@ yarn-error.log*
 .pnp.*
 *.tsbuildinfo
 
-# =========================
 # Python
-# =========================
 __init__.py
 __pycache__/
 *.py[cod]
@@ -55,9 +57,7 @@ htmlcov/
 .tox/
 .nox/
 
-# =========================
-# Logs & runtime
-# =========================
+# Logs and runtime
 logs/
 *.log
 pids/
@@ -66,9 +66,7 @@ pids/
 *.pid.lock
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
-# =========================
 # Artillery / load-test outputs
-# =========================
 **/artillery/logs/
 **/artillery-tests/logs/
 result*.json
@@ -76,16 +74,12 @@ result*.json
 artillery_report*
 .artillery/
 
-# =========================
 # Coverage / test artifacts
-# =========================
 coverage/
 *.lcov
 .nyc_output/
 
-# =========================
-# OS junk
-# =========================
+# OS
 .DS_Store
 .DS_Store?
 ._*
@@ -94,9 +88,7 @@ ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
 
-# =========================
-# Editors / IDEs
-# =========================
+# Editors
 .idea/
 .vscode/*
 !.vscode/extensions.json
@@ -108,17 +100,13 @@ $RECYCLE.BIN/
 .classpath
 .settings/
 
-# =========================
-# Docker / local data (if ever bind-mounted)
-# =========================
+# Docker / local data
 docker-data/
 postgres-data/
 *.sql.gz
 *.dump
 
-# =========================
-# Misc build / temp
-# =========================
+# Misc
 tmp/
 temp/
 .cache/

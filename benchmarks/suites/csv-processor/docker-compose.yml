@@ -1,5 +1,4 @@
-# CSV suite under benchmarks/suites/csv-processor
-# Shared stack: ../../stack  |  ports: 9190 / 3102 / 9192-9194
+# CSV suite: ports 9190 / 3102 / 9192-9194
 name: csv-processor-benchmark
 
 include:

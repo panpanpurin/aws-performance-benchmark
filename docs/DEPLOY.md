@@ -202,7 +202,7 @@ cd local/artillery && npm install && npm run test:all
 
 Local stack ports match AniLove (9090 / 3002 / 9092-9094). Do not start `benchmarks/suites/anilove` while local is up. CSV and Thumbnail suites can run alongside local.
 
-Local defaults (Grafana `admin`/`admin`, sample JWT secret) are for reproducibility and are not for production. See [../local/README.md](../local/README.md).
+Local defaults (Grafana `admin`/`admin`, sample JWT secret) are local-only. See [../local/README.md](../local/README.md).
 
 Requires Docker Compose **v2.20+** (`include` in compose files).
 

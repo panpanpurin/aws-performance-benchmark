@@ -1,6 +1,6 @@
 # Target AWS infrastructure
 
-Region: **ap-northeast-1** (Tokyo). Same VPC for all experiment components so differences are attributable to the compute model (EC2, ECS on EC2, Lambda), not to network or edge layout.
+Region: **ap-northeast-1** (Tokyo). Same VPC for all components so differences come from the compute model (EC2, ECS on EC2, Lambda), not from network or edge layout.
 
 This document is the reference for Terraform. Application packaging and env vars: [DEPLOY.md](./DEPLOY.md). Workload bounds: [WORKLOADS.md](./WORKLOADS.md).
 

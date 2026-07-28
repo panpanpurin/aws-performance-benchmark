@@ -1,5 +1,5 @@
-# Helpers for local stack + Artillery + AWS benchmark suites.
-# Needs: Docker Compose, Node/npm (for Artillery). On Windows use Git Bash or WSL for `make`.
+# Local stack, Artillery, and AWS benchmark suites.
+# Needs Docker Compose and Node/npm. On Windows use Git Bash or WSL for make.
 #
 #   make help
 #   make local-up
@@ -19,7 +19,7 @@ ROOT := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
 help:
 	@echo ""
-	@echo "Local stack (apps + metrics on your machine)"
+	@echo "Local stack (apps + metrics)"
 	@echo "  make local-up          docker compose up -d --build"
 	@echo "  make local-down        docker compose down"
 	@echo "  make local-ps          docker compose ps"
@@ -28,21 +28,15 @@ help:
 	@echo "  make local-test        Artillery against localhost (all 3 apps)"
 	@echo "  make local-test-anilove|csv|thumbnail"
 	@echo ""
-	@echo "AWS benchmark metrics stacks (can run in parallel; different ports)"
+	@echo "AWS metrics stacks (parallel ports; see benchmarks/docs/PORTS.md)"
 	@echo "  make bench-anilove     :9090 / Grafana :3002 / PG 9092-9094"
 	@echo "  make bench-csv         :9190 / Grafana :3102 / PG 9192-9194"
 	@echo "  make bench-thumbnail   :9290 / Grafana :3202 / PG 9292-9294"
 	@echo "  make bench-down-anilove|csv|thumbnail"
-	@echo "  (see benchmarks/docs/PORTS.md)"
 	@echo ""
-	@echo "Parallel Artillery (EC2+ECS+Lambda within a suite)"
-	@echo "  make artillery-anilove   (stack on :9090 / Grafana :3002)"
-	@echo "  make artillery-csv       (stack on :9190 / Grafana :3102)"
-	@echo "  make artillery-thumbnail (stack on :9290 / Grafana :3202)"
-	@echo "  Suites can run together; see benchmarks/docs/PORTS.md"
+	@echo "Parallel Artillery (EC2+ECS+Lambda per suite)"
+	@echo "  make artillery-anilove|csv|thumbnail"
 	@echo ""
-
-# ---------- local ----------
 
 local-up:
 	docker compose -f $(ROOT)docker-compose.yml up -d --build
@@ -75,8 +69,6 @@ local-test-csv: artillery-install
 local-test-thumbnail: artillery-install
 	cd $(ROOT)local/artillery && npm run test:thumbnail
 
-# ---------- AWS metrics stacks ----------
-
 bench-anilove:
 	cd $(ROOT)benchmarks/suites/anilove && docker compose up -d
 
@@ -94,8 +86,6 @@ bench-down-csv:
 
 bench-down-thumbnail:
 	cd $(ROOT)benchmarks/suites/thumbnail-generator && docker compose down
-
-# ---------- parallel Artillery (shared script) ----------
 
 artillery-anilove:
 	bash $(ROOT)benchmarks/scripts/run-parallel.sh anilove

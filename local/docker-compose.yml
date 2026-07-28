@@ -1,26 +1,15 @@
-# Local stack for reproducibility: apps + Postgres + Prometheus + Grafana + pushgateways.
-# Validates instrumentation and Artillery locally; not a substitute for AWS EC2/ECS/Lambda runs.
-# Grafana admin/admin and JWT_SECRET below are for reproducibility. Do not use in production.
+# Local apps + Postgres + Prometheus + Grafana + pushgateways.
+# Not a substitute for AWS EC2 / ECS / Lambda runs.
+# Grafana admin/admin and JWT_SECRET are local-only defaults.
 #
-# From repo root:
 #   docker compose up -d --build
-#   # or: docker compose -f local/docker-compose.yml up -d --build
+#   make local-up && make local-test
 #
-# Load tests:
-#   cd local/artillery && npm install && npm run test:all
-#   # or: make local-up && make local-test
-#
-# URLs:
-#   AniLove     http://localhost:3000
-#   CSV         http://localhost:8000
-#   Thumbnail   http://localhost:3001
-#   Prometheus  http://localhost:9090
-#   Grafana     http://localhost:3002  (admin / admin)
+# AniLove :3000 | CSV :8000 | Thumbnail :3001 | Prometheus :9090 | Grafana :3002
 
 name: aws-benchmark-local
 
 services:
-  # ---------- database (AniLove only) ----------
   postgres:
     image: postgres:16-alpine
     environment:
@@ -53,7 +42,6 @@ services:
       DB_PASSWORD: anilove
       DB_HOST: postgres
       DB_PORT: "5432"
-      # Local Postgres without TLS. AWS RDS uses TLS by default (DB_SSL unset or true).
       DB_SSL: "false"
       DB_SCHEMA: public
       DB_POOL_MIN: "1"
@@ -128,7 +116,6 @@ services:
     networks:
       - benchmark
 
-  # ---------- metrics ----------
   prometheus:
     image: prom/prometheus:v2.55.1
     command:
@@ -168,7 +155,6 @@ services:
     networks:
       - benchmark
 
-  # Pushgateway ports match AWS benchmark suites (Artillery publish-metrics)
   pushgateway-ecs:
     image: prom/pushgateway:v1.10.0
     ports:

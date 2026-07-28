@@ -19,4 +19,5 @@ Related paths:
 | [../local/README.md](../local/README.md) | Local Docker path (apps + metrics + Artillery) |
 | [../benchmarks/README.md](../benchmarks/README.md) | AWS metrics suites + shared stack |
 | [../apps/](../apps/) | Application source (one codebase each) |
+| [../terraform/](../terraform/) | AWS infrastructure as code |
 | [../Makefile](../Makefile) | Common commands (`make help`) |

@@ -1,5 +1,4 @@
-# Thumbnail suite under benchmarks/suites/thumbnail-generator
-# Shared stack: ../../stack  |  ports: 9290 / 3202 / 9292-9294
+# Thumbnail suite: ports 9290 / 3202 / 9292-9294
 name: thumbnail-generator-benchmark
 
 include:

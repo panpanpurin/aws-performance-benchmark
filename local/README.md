@@ -1,6 +1,6 @@
 # Local Docker path: apps + metrics + Artillery
 
-Local stack for reproducibility. Not a substitute for AWS EC2/ECS/Lambda comparison runs.
+Local apps + metrics + Artillery. Not a substitute for AWS EC2 / ECS / Lambda runs.
 
 ```text
 Artillery (host)
@@ -48,7 +48,7 @@ docker compose ps
 | Grafana | http://localhost:3002 (user `admin` / password `admin`) |
 | Pushgateway ECS / EC2 / Lambda | `:9092` / `:9093` / `:9094` |
 
-**Local defaults for reproducibility:** Grafana `admin`/`admin` and AniLove `JWT_SECRET=local-dev-secret-change-me` are for reproducibility. Do not use them on public or production systems. AWS suites use Grafana `admin`/`123` on their own ports (see [benchmarks/docs/PORTS.md](../benchmarks/docs/PORTS.md)).
+Local defaults: Grafana `admin`/`admin`, sample JWT secret. Do not use on public systems. AWS suites use Grafana `admin`/`123` on other ports ([benchmarks/docs/PORTS.md](../benchmarks/docs/PORTS.md)).
 
 Stop:
 

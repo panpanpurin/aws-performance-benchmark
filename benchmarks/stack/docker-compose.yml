@@ -1,14 +1,7 @@
-# Shared Prometheus, Grafana, and pushgateways for AWS benchmark suites.
-# Not started alone: each suite under benchmarks/suites/<app>/ includes this file
-# and mounts its own prometheus.yml (per-app scrape targets).
-#
-# Container listen ports are internal to Docker. Each suite maps different
-# HOST ports so multiple suites can run at the same time (see suite compose).
-#
-# Grafana admin/123 is for reproducibility. Change for shared or long-lived environments.
-#
-# Default mapping (overridden per suite):
-#   Prometheus 9090 | Grafana 3002 | PG ECS 9092 | EC2 9093 | Lambda 9094
+# Shared Prometheus, Grafana, and pushgateways.
+# Each suite under benchmarks/suites/<app>/ includes this file, maps host ports,
+# and mounts its own prometheus.yml.
+# Grafana: admin / 123 (suite default only).
 
 services:
   prometheus:
@@ -27,7 +20,6 @@ services:
       - pushgateway-lambda
     networks:
       - monitoring
-    # prometheus.yml is mounted by the suite compose override
 
   grafana:
     image: grafana/grafana:11.3.1

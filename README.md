@@ -42,25 +42,30 @@ Before AWS Artillery runs, set each suite `target` (currently `https://REPLACE_M
 ## Repository layout
 
 ```text
-apps/                         # deployable applications
+apps/                         # one codebase per workload (EC2 / ECS / Lambda)
   anilove/
   csv-processor/
   thumbnail-generator/
 
-benchmarks/                   # AWS observability + load tests
-  docs/                       # ports + prometheus target notes
+benchmarks/                   # AWS metrics suites + Artillery
+  docs/                       # ports, Prometheus and Artillery targets
+  scripts/                    # shared run-parallel runners
   stack/                      # shared Prometheus + Grafana + pushgateways
   suites/
-    anilove/                  # per-workload compose, scrape, artillery, dashboard
+    anilove/
     csv-processor/
     thumbnail-generator/
 
-local/                        # local full stack
+local/                        # local apps + metrics + Artillery
   docker-compose.yml
   artillery/
 
-docs/                         # documentation hub
-docker-compose.yml            # wrapper -> local/docker-compose.yml
+terraform/                    # AWS infrastructure (Tokyo default)
+  bootstrap/                  # remote state bucket + lock table
+  modules/
+
+docs/                         # deploy, workloads, IAM, infrastructure
+docker-compose.yml            # includes local/
 Makefile
 ```
 
@@ -114,7 +119,7 @@ Suites use **different host ports** and can run together:
 
 Local stack shares the AniLove port range. Do not start `benchmarks/suites/anilove` while local is up. CSV and Thumbnail suites can run alongside local.
 
-Local Grafana/JWT defaults (`admin`/`admin`, sample JWT secret) are for reproducibility. Do not reuse them for production. Details: [local/README.md](./local/README.md).
+Local Grafana/JWT defaults (`admin`/`admin`, sample JWT secret) are local-only. Do not use them in production. Details: [local/README.md](./local/README.md).
 
 ---
 

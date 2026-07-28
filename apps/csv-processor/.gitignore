@@ -1,4 +1,4 @@
-# (most rules live in the repo root .gitignore)
+# Most rules are in the repo root .gitignore
 __init__.py
 __pycache__/
 *.py[cod]
