@@ -1,0 +1,5 @@
+# (most rules live in the repo root .gitignore)
+node_modules/
+.env
+.env.*
+!.env.example

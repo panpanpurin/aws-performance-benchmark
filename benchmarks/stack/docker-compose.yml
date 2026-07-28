@@ -1,0 +1,76 @@
+# Shared Prometheus, Grafana, and pushgateways for AWS benchmark suites.
+# Not started alone: each suite under benchmarks/<app>/ includes this file
+# and mounts its own prometheus.yml (per-app scrape targets).
+#
+# Default container ports are fixed inside Docker. Each suite maps different
+# HOST ports so multiple suites can run at the same time (see suite compose).
+#
+# Inside the network, Artillery still targets host-mapped pushgateways from
+# the machine running the load tests (localhost:<suite-port>).
+#
+# Default mapping (overridden per suite):
+#   Prometheus 9090 | Grafana 3002 | PG ECS 9092 | EC2 9093 | Lambda 9094
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    ports:
+      - "9090:9090"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - pushgateway-ecs
+      - pushgateway-ec2
+      - pushgateway-lambda
+    networks:
+      - monitoring
+    # prometheus.yml is mounted by the suite compose override
+
+  grafana:
+    image: grafana/grafana:11.3.1
+    ports:
+      - "3002:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: "123"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    networks:
+      - monitoring
+
+  pushgateway-ecs:
+    image: prom/pushgateway:v1.10.0
+    ports:
+      - "9092:9091"
+    networks:
+      - monitoring
+
+  pushgateway-ec2:
+    image: prom/pushgateway:v1.10.0
+    ports:
+      - "9093:9091"
+    networks:
+      - monitoring
+
+  pushgateway-lambda:
+    image: prom/pushgateway:v1.10.0
+    ports:
+      - "9094:9091"
+    networks:
+      - monitoring
+
+volumes:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  monitoring:
+    driver: bridge

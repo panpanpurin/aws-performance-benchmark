@@ -1,0 +1,10 @@
+# Root convenience wrapper. Full local stack: local/docker-compose.yml
+#
+#   docker compose up -d --build
+#   docker compose down -v
+#
+# Equivalent:
+#   docker compose -f local/docker-compose.yml up -d --build
+
+include:
+  - path: local/docker-compose.yml

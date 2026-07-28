@@ -1,0 +1,7 @@
+fastapi==0.116.0
+uvicorn[standard]==0.35.0
+pandas==2.3.1
+python-multipart==0.0.20
+mangum==0.17.0
+psutil~=6.0
+prometheus-client==0.20.0

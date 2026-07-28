@@ -1,0 +1,83 @@
+config:
+  target: "https://anilove-ec2.thesis-apis.click"
+  phases:
+    # Phase 1 - Warm-up:
+    # Gradually warms the environments without pressure.
+    # Ensures Lambda starts containers, ECS pulls images if needed, and EC2 establishes steady CPU usage.
+    # Captures cold-start behavior and stabilizes connections/caches before real load.
+    - duration: 360        # 6 minutes
+      arrivalRate: 5
+
+    # Phase 2 - Primary Soak (steady-state load):
+    # Maintains a realistic constant load to observe long-term behavior.
+    # Ideal to reveal Lambda steady latency, ECS CPU/memory equilibrium, and EC2 CPU credit consumption over time.
+    # This phase is crucial to compare environments under sustained, non-burst conditions.
+    - duration: 600        # 10 minutes
+      arrivalRate: 20
+
+    # Phase 3 - Stress Peak:
+    # Pushes the environments to higher pressure to expose bottlenecks.
+    # Used to analyze how Lambda throttles, how ECS reacts under CPU pressure, and when EC2 t2.micro collapses due to credit depletion.
+    # Reveals p95/p99 degradation patterns beyond normal workloads.
+    - duration: 360        # 6 minutes
+      arrivalRate: 50
+
+    # Phase 4 - Recovery + Secondary Soak:
+    # Returns the load to the same level as the first soak to observe recovery behavior.
+    # Validates if latencies return to pre-stress levels or if any environment remains degraded.
+    # Critical to detect lingering resource exhaustion (especially EC2 CPU credits).
+    - duration: 600        # 10 minutes
+      arrivalRate: 20
+
+  defaults:
+    headers:
+      Content-Type: application/json
+    http:
+      timeout: 60
+
+  plugins:
+    publish-metrics:
+      - type: prometheus
+        pushgateway: "http://localhost:9093"
+        testName: "anilove-load-test"
+        environment: "production"
+        labels:
+          service: "anilove-service"
+          scenario: "animes-crud"
+          instance: ec2
+
+scenarios:
+  - name: Animes CRUD
+    flow:
+      # 1) Create an anime
+      - post:
+          url: "/animes"
+          capture:
+            - json: "$.id"      # Captures the ID returned by the POST request
+              as: "animeId"
+          json:
+            title: "Anime_{{ $randomNumber(1,9999) }}_{{ $timestamp }}_{{ $uuid }}"
+            genre: ["Action", "Fantasy"]
+            episodes: "{{ $randomNumber(12, 50) }}"
+            note: "{{ $randomNumber(1, 10) }}"
+
+      # 2) List all anime
+      - get:
+          url: "/animes"
+
+      # 3) Search for the created anime (using captured ID)
+      - get:
+          url: "/animes/{{ animeId }}"
+
+      # 4) Update the anime
+      - put:
+          url: "/animes/{{ animeId }}"
+          json:
+            title: "Anime_Updated_{{ $randomNumber(1, 9999) }}_{{ $uuid }}"
+            genre: ["Adventure"]
+            episodes: 24
+            note: 9
+
+      # 5) Delete the created anime
+      - delete:
+          url: "/animes/{{ animeId }}"

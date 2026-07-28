@@ -1,0 +1,13 @@
+# AWS Lambda container image
+FROM public.ecr.aws/lambda/nodejs:22-x86_64
+
+WORKDIR /var/task
+
+COPY package*.json ./
+RUN npm install --only=production
+
+COPY . .
+
+ENV NODE_ENV=production
+
+CMD ["index.handler"]

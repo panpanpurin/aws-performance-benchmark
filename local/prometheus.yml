@@ -1,0 +1,57 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  # ---- Apps (Docker network) ----
+  - job_name: anilove-local
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['anilove:3000']
+        labels:
+          service: anilove
+          environment: local
+          instance: local
+
+  - job_name: csv-processor-local
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['csv-processor:8000']
+        labels:
+          service: csv-processor
+          environment: local
+          instance: local
+
+  - job_name: thumbnail-generator-local
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['thumbnail-generator:3001']
+        labels:
+          service: thumbnail-generator
+          environment: local
+          instance: local
+
+  # ---- Artillery pushgateways (same ports as cloud stacks) ----
+  - job_name: artillery-ec2
+    static_configs:
+      - targets: ['pushgateway-ec2:9091']
+        labels:
+          service: artillery-ec2
+          environment: local
+          instance: ec2
+
+  - job_name: artillery-ecs
+    static_configs:
+      - targets: ['pushgateway-ecs:9091']
+        labels:
+          service: artillery-ecs
+          environment: local
+          instance: ecs
+
+  - job_name: artillery-lambda
+    static_configs:
+      - targets: ['pushgateway-lambda:9091']
+        labels:
+          service: artillery-lambda
+          environment: local
+          instance: lambda

@@ -1,0 +1,30 @@
+# CSV suite under benchmarks/suites/csv-processor
+# Shared stack: ../../stack  |  ports: 9190 / 3102 / 9192-9194
+name: csv-processor-benchmark
+
+include:
+  - path: ../../stack/docker-compose.yml
+
+services:
+  prometheus:
+    ports:
+      - "9190:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+
+  grafana:
+    ports:
+      - "3102:3000"
+
+  pushgateway-ecs:
+    ports:
+      - "9192:9091"
+
+  pushgateway-ec2:
+    ports:
+      - "9193:9091"
+
+  pushgateway-lambda:
+    ports:
+      - "9194:9091"

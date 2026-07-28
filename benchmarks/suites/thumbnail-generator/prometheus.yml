@@ -1,0 +1,89 @@
+# Thumbnail generator scrape config.
+# App and node-exporter targets are left empty for later fill (manual or automation).
+# Pushgateway targets stay fixed (Docker Compose service names).
+
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+
+  # ---- EC2 ----
+
+  - job_name: 'instrumented-metrics-ec2'
+    scheme: https
+    metrics_path: /metrics
+    static_configs:
+      - targets: []
+        # e.g. ['thumbnail-generator-ec2.example.com']
+        labels:
+          service: app-instrumented-ec2
+          environment: production
+          instance: ec2
+
+  - job_name: 'artillery-metrics-ec2'
+    static_configs:
+      - targets: ['pushgateway-ec2:9091']
+        labels:
+          service: artillery-ec2
+          environment: production
+          instance: ec2
+
+  - job_name: 'node-exporter-ec2'
+    static_configs:
+      - targets: []
+        # e.g. ['x.x.x.x:9100']
+        labels:
+          service: infra-ec2
+          environment: production
+          instance: ec2
+
+  # ---- ECS ----
+
+  - job_name: 'instrumented-metrics-ecs'
+    scheme: https
+    metrics_path: /metrics
+    static_configs:
+      - targets: []
+        # e.g. ['thumbnail-ecs.example.com']
+        labels:
+          service: app-instrumented-ecs
+          environment: production
+          instance: ecs
+
+  - job_name: 'artillery-metrics-ecs'
+    static_configs:
+      - targets: ['pushgateway-ecs:9091']
+        labels:
+          service: artillery-ecs
+          environment: production
+          instance: ecs
+
+  - job_name: 'node-exporter-ecs'
+    static_configs:
+      - targets: []
+        # e.g. ['x.x.x.x:9100']
+        labels:
+          service: infra-ecs
+          environment: production
+          instance: ecs
+
+  # ---- Lambda ----
+
+  - job_name: 'instrumented-metrics-lambda'
+    scheme: https
+    metrics_path: /metrics
+    static_configs:
+      - targets: []
+        # e.g. ['xxxx.lambda-url.region.on.aws']
+        labels:
+          service: app-instrumented-lambda
+          environment: production
+          instance: lambda
+
+  - job_name: 'artillery-metrics-lambda'
+    static_configs:
+      - targets: ['pushgateway-lambda:9091']
+        labels:
+          service: artillery-lambda
+          environment: production
+          instance: lambda

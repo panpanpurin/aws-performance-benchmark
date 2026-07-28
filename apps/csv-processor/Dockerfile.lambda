@@ -1,0 +1,14 @@
+# AWS Lambda container image
+FROM public.ecr.aws/lambda/python:3.12-x86_64
+
+ENV OMP_NUM_THREADS=1 \
+    OPENBLAS_NUM_THREADS=1
+
+COPY requirements.txt .
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir --only-binary=:all: -r requirements.txt
+
+COPY app/ app/
+
+# Mangum handler exported as app.main.handler
+CMD ["app.main.handler"]

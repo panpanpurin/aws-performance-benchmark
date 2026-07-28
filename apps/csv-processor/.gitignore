@@ -1,0 +1,9 @@
+# (most rules live in the repo root .gitignore)
+__init__.py
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.env.*
+!.env.example

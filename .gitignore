@@ -1,0 +1,129 @@
+# =========================
+# Secrets & local config
+# =========================
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials*
+*secret*
+
+# =========================
+# Node / npm
+# =========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.npm
+.eslintcache
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+*.tsbuildinfo
+
+# =========================
+# Python
+# =========================
+__init__.py
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# =========================
+# Logs & runtime
+# =========================
+logs/
+*.log
+pids/
+*.pid
+*.seed
+*.pid.lock
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# =========================
+# Artillery / load-test outputs
+# =========================
+**/artillery/logs/
+**/artillery-tests/logs/
+result*.json
+*-result.json
+artillery_report*
+.artillery/
+
+# =========================
+# Coverage / test artifacts
+# =========================
+coverage/
+*.lcov
+.nyc_output/
+
+# =========================
+# OS junk
+# =========================
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# =========================
+# Editors / IDEs
+# =========================
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json.example
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# =========================
+# Docker / local data (if ever bind-mounted)
+# =========================
+docker-data/
+postgres-data/
+*.sql.gz
+*.dump
+
+# =========================
+# Misc build / temp
+# =========================
+tmp/
+temp/
+.cache/
+.parcel-cache/
+.fusebox/
+.serverless/
+.dynamodb/
+*.tgz
+*.zip
+!**/sample.jpg
+!**/pokes.csv
+!**/data.csv
+!**/fixtures/**

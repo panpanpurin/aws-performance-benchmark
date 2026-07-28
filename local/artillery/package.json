@@ -1,0 +1,17 @@
+{
+  "name": "local-artillery-benchmark",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Artillery load tests against local Docker apps",
+  "scripts": {
+    "test:anilove": "artillery run test-anilove-local.yml",
+    "test:csv": "artillery run test-csv-local.yml",
+    "test:thumbnail": "artillery run test-thumbnail-local.yml",
+    "test:all": "npm run test:anilove && npm run test:csv && npm run test:thumbnail",
+    "test:smoke": "artillery run test-anilove-local.yml && artillery run test-csv-local.yml && artillery run test-thumbnail-local.yml"
+  },
+  "dependencies": {
+    "artillery": "2.0.23",
+    "form-data": "^4.0.4"
+  }
+}

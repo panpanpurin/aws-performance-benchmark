@@ -1,0 +1,30 @@
+# AniLove suite under benchmarks/suites/anilove
+# Shared stack: ../../stack  |  ports: 9090 / 3002 / 9092-9094
+name: anilove-benchmark
+
+include:
+  - path: ../../stack/docker-compose.yml
+
+services:
+  prometheus:
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+
+  grafana:
+    ports:
+      - "3002:3000"
+
+  pushgateway-ecs:
+    ports:
+      - "9092:9091"
+
+  pushgateway-ec2:
+    ports:
+      - "9093:9091"
+
+  pushgateway-lambda:
+    ports:
+      - "9094:9091"

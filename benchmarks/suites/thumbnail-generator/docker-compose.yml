@@ -1,0 +1,30 @@
+# Thumbnail suite under benchmarks/suites/thumbnail-generator
+# Shared stack: ../../stack  |  ports: 9290 / 3202 / 9292-9294
+name: thumbnail-generator-benchmark
+
+include:
+  - path: ../../stack/docker-compose.yml
+
+services:
+  prometheus:
+    ports:
+      - "9290:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+
+  grafana:
+    ports:
+      - "3202:3000"
+
+  pushgateway-ecs:
+    ports:
+      - "9292:9091"
+
+  pushgateway-ec2:
+    ports:
+      - "9293:9091"
+
+  pushgateway-lambda:
+    ports:
+      - "9294:9091"

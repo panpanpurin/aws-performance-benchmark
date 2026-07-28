@@ -1,0 +1,199 @@
+# Local stack for reproducibility: apps + Postgres + Prometheus + Grafana + pushgateways.
+# Validates instrumentation and Artillery locally; not a substitute for AWS EC2/ECS/Lambda runs.
+#
+# From repo root:
+#   docker compose up -d --build
+#   # or: docker compose -f local/docker-compose.yml up -d --build
+#
+# Load tests:
+#   cd local/artillery && npm install && npm run test:all
+#   # or: make local-up && make local-test
+#
+# URLs:
+#   AniLove     http://localhost:3000
+#   CSV         http://localhost:8000
+#   Thumbnail   http://localhost:3001
+#   Prometheus  http://localhost:9090
+#   Grafana     http://localhost:3002  (admin / admin)
+
+name: aws-benchmark-local
+
+services:
+  # ---------- database (AniLove only) ----------
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: anilove
+      POSTGRES_USER: anilove
+      POSTGRES_PASSWORD: anilove
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U anilove -d anilove"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - benchmark
+
+  # ---------- apps (build contexts under ../apps) ----------
+  anilove:
+    build:
+      context: ../apps/anilove
+      dockerfile: Dockerfile
+    environment:
+      PORT: "3000"
+      NODE_ENV: production
+      SERVICE_NAME: anilove
+      DB_NAME: anilove
+      DB_USER: anilove
+      DB_PASSWORD: anilove
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      # Local Postgres without TLS. AWS RDS uses TLS by default (DB_SSL unset or true).
+      DB_SSL: "false"
+      DB_SCHEMA: public
+      DB_POOL_MIN: "1"
+      DB_POOL_MAX: "10"
+      JWT_SECRET: local-dev-secret
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - benchmark
+
+  csv-processor:
+    build:
+      context: ../apps/csv-processor
+      dockerfile: Dockerfile
+    environment:
+      SERVICE_NAME: csv-processor
+      ENVIRONMENT: local
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    networks:
+      - benchmark
+
+  thumbnail-generator:
+    build:
+      context: ../apps/thumbnail-generator
+      dockerfile: Dockerfile
+    environment:
+      PORT: "3001"
+      NODE_ENV: production
+      SERVICE_NAME: thumbnail-generator
+    ports:
+      - "3001:3001"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    networks:
+      - benchmark
+
+  # ---------- metrics ----------
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - pushgateway-ec2
+      - pushgateway-ecs
+      - pushgateway-lambda
+      - anilove
+      - csv-processor
+      - thumbnail-generator
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - benchmark
+
+  grafana:
+    image: grafana/grafana:11.3.1
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "3002:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    networks:
+      - benchmark
+
+  # Pushgateway ports match AWS benchmark suites (Artillery publish-metrics)
+  pushgateway-ecs:
+    image: prom/pushgateway:v1.10.0
+    ports:
+      - "9092:9091"
+    networks:
+      - benchmark
+
+  pushgateway-ec2:
+    image: prom/pushgateway:v1.10.0
+    ports:
+      - "9093:9091"
+    networks:
+      - benchmark
+
+  pushgateway-lambda:
+    image: prom/pushgateway:v1.10.0
+    ports:
+      - "9094:9091"
+    networks:
+      - benchmark
+
+volumes:
+  postgres_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  benchmark:
+    driver: bridge

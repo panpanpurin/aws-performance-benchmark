@@ -1,0 +1,50 @@
+config:
+  target: "https://4ootdcgashmpwbmxmlcgmf5pxa0qqqda.lambda-url.sa-east-1.on.aws"
+  processor: "./upload-image.js"
+  phases:
+    # Phase 1 - Warm-up
+    # Gradually introduces load to warm up the environment and avoid cold-start effects.
+    - duration: 300   # 5 minutes of light load
+      arrivalRate: 5  # 5 requests per second (gentle warm-up)
+
+    # Phase 2 - Steady Load
+    # Represents normal, consistent system usage. Used for baseline performance comparison.
+    - duration: 600   # 10 minutes steady load
+      arrivalRate: 8  # 8 requests per second (baseline phase)
+
+    # Phase 3 - Short Stress Peak
+    # Applies a temporary burst of traffic to test scalability and tail latency (p95/p99).
+    - duration: 120   # 2 minutes stress peak
+      arrivalRate: 12 # 12 requests per second (short spike)
+
+    # Phase 4 - Recovery
+    # Returns to normal load to evaluate how quickly the system stabilizes after stress.
+    - duration: 300   # 5 minutes recovery period
+      arrivalRate: 8  # 8 requests per second (post-stress steady state)
+
+    # Phase 5 - Soak Test
+    # Maintains a low, continuous load to observe long-term stability and resource drift.
+    - duration: 600   # 10 minutes soak test
+      arrivalRate: 6  # 6 requests per second (light, sustained load)
+  
+  defaults:
+    http:
+      timeout: 60         
+
+  plugins:
+    publish-metrics:
+      - type: prometheus
+        pushgateway: "http://localhost:9294"
+        testName: "thumbnail-load-test"
+        environment: "production"
+        labels:
+          service: "thumbnail-service"
+          scenario: "upload-formdata"
+          instance: lambda
+
+scenarios:
+  - name: Upload de imagem via form-data manual
+    flow:
+      - post:
+          url: "/thumbnail?width=200&height=400&format=jpg&quality=80"
+          beforeRequest: "buildFormData"

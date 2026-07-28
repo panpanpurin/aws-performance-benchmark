@@ -1,0 +1,71 @@
+config:
+  target: "https://csv-processor-ecs.thesis-apis.click"
+  processor: "./processor.js"
+
+  # ============================================================
+  # Load test phases for CSV processor (same config for:
+  # - Lambda (1024 MB memory / 1024 MB ephemeral)
+  # - EC2 t2.micro
+  # - ECS task on t3.small (1 vCPU, 1 GB hard / 512 MB soft)
+  # Goal: highlight differences without instantly killing t2.micro
+  # ============================================================
+  phases:
+    # ----------------------------------------------------------
+    # Phase 1: Warm-up
+    # Light traffic to warm the app, JIT, caches, and Lambda.
+    # All environments should handle this with very low latency.
+    # ----------------------------------------------------------
+    - duration: 240          # 4 minutes
+      arrivalRate: 16
+
+    # ----------------------------------------------------------
+    # Phase 2: Baseline steady load
+    # Represents a realistic "normal" load.
+    # t2.micro should be under pressure but still mostly stable;
+    # t3.small and Lambda should show clearly better latency.
+    # ----------------------------------------------------------
+    - duration: 600          # 10 minutes
+      arrivalRate: 20
+
+    # ----------------------------------------------------------
+    # Phase 3: Stress peak
+    # Push the system beyond comfortable capacity.
+    # t2.micro is expected to show higher latency and possible errors;
+    # t3.small may degrade but still survive; Lambda should handle
+    # this better, with some tail latency under burst.
+    # ----------------------------------------------------------
+    - duration: 360          # 6 minutes
+      arrivalRate: 28
+
+    # ----------------------------------------------------------
+    # Phase 4: Recovery / light soak
+    # Go back to a moderate load after stress.
+    # Used to observe if latency/concurrency returns to normal
+    # or if the system remains degraded (e.g., CPU throttling on t2.micro).
+    # ----------------------------------------------------------
+    - duration: 720          # 12 minutes
+      arrivalRate: 18
+
+  defaults:
+    http:
+      timeout: 60
+
+  plugins:
+    publish-metrics:
+      - type: prometheus
+        pushgateway: "http://localhost:9192"
+        testName: "csv-processor-load-test"
+        environment: "production"
+        labels:
+          service: "csv-processor-service"
+          scenario: "process-csv-formdata"
+          instance: ecs
+# ============================================================
+# Scenarios
+# ============================================================
+scenarios:
+  - name: Processar CSV via form-data manual
+    flow:
+      - post:
+          url: "/process"
+          beforeRequest: "buildCsvRequest"

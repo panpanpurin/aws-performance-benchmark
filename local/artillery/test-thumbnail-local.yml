@@ -1,0 +1,36 @@
+# Local Docker thumbnail generator - short phases
+config:
+  target: "http://localhost:3001"
+  processor: "./upload-image.js"
+
+  phases:
+    - duration: 30
+      arrivalRate: 2
+    - duration: 60
+      arrivalRate: 4
+    - duration: 30
+      arrivalRate: 6
+    - duration: 30
+      arrivalRate: 2
+
+  defaults:
+    http:
+      timeout: 60
+
+  plugins:
+    publish-metrics:
+      - type: prometheus
+        pushgateway: "http://localhost:9093"
+        testName: "thumbnail-local-load-test"
+        environment: "local"
+        labels:
+          service: "thumbnail-service"
+          scenario: "upload-formdata"
+          instance: local
+
+scenarios:
+  - name: Upload image (local)
+    flow:
+      - post:
+          url: "/thumbnail?width=200&height=200&format=jpg&quality=80"
+          beforeRequest: "buildFormData"
