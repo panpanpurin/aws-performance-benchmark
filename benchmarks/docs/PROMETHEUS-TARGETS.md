@@ -22,7 +22,7 @@ static_configs:
 Lambda example:
 
 ```yaml
-- targets: ['xxxx.lambda-url.sa-east-1.on.aws']
+- targets: ['xxxx.lambda-url.ap-northeast-1.on.aws']
 ```
 
 Node exporter:

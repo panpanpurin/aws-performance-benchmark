@@ -1,0 +1,48 @@
+variable "name" {
+  type        = string
+  description = "Name prefix."
+}
+
+variable "vpc_id" {
+  type        = string
+  description = "VPC id."
+}
+
+variable "subnet_ids" {
+  type        = list(string)
+  description = "Public subnet ids for the ALB."
+}
+
+variable "security_group_id" {
+  type        = string
+  description = "ALB security group id."
+}
+
+variable "certificate_arn" {
+  type        = string
+  description = "ACM certificate ARN. Empty skips HTTPS listener."
+  default     = ""
+}
+
+variable "ssl_policy" {
+  type        = string
+  description = "TLS security policy for the HTTPS listener."
+  default     = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+}
+
+variable "apps" {
+  type = map(object({
+    name        = string
+    port        = number
+    health_path = string
+    host_ec2    = string
+    host_ecs    = string
+  }))
+  description = "Apps for target groups and host-based rules."
+}
+
+variable "tags" {
+  type        = map(string)
+  description = "Extra tags."
+  default     = {}
+}

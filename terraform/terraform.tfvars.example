@@ -1,0 +1,57 @@
+aws_region   = "ap-northeast-1"
+project_name = "aws-perf-bench"
+
+# Set both for ACM + Route 53 aliases. Leave empty for HTTP-only ALB.
+domain_name     = ""
+route53_zone_id = ""
+
+# Empty = resolve from SSM (pin ids for stable runs)
+ec2_ami_id = ""
+ecs_ami_id = ""
+
+ec2_instance_type = "t2.micro"
+ecs_instance_type = "t3.small"
+
+ecs_task_cpu              = 1024
+ecs_task_memory           = 1024
+ecs_service_desired_count = 0
+
+lambda_memory_mb    = 1024
+lambda_ephemeral_mb = 1024
+lambda_timeout_s    = 30
+
+rds_instance_class    = "db.t4g.micro"
+rds_engine_version    = "17.4"
+rds_allocated_storage = 20
+rds_db_name           = "anilove"
+rds_username          = "anilove"
+
+alb_ssl_policy     = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+log_retention_days = 14
+
+enable_nat_gateway = true
+enable_rds         = true
+
+# After ECR push
+enable_ec2    = false
+enable_ecs    = false
+enable_lambda = false
+
+ecr_image_tag        = "latest"
+ecr_lambda_image_tag = "lambda"
+
+# image_digest_anilove           = "sha256:..."
+# image_digest_csv               = "sha256:..."
+# image_digest_thumbnail         = "sha256:..."
+# image_digest_lambda_anilove    = "sha256:..."
+# image_digest_lambda_csv        = "sha256:..."
+# image_digest_lambda_thumbnail  = "sha256:..."
+
+create_deploy_role             = false
+deploy_role_trusted_principals = []
+
+write_benchmark_targets = true
+
+tags_extra = {
+  Owner = "benchmark"
+}

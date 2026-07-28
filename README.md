@@ -29,6 +29,9 @@ Before AWS Artillery runs, set each suite `target` (currently `https://REPLACE_M
 | **AWS load + charts (one suite)** | `make bench-anilove` then `make artillery-anilove` |
 | **All three suites together** | `make bench-anilove bench-csv bench-thumbnail` then artillery targets (see ports) |
 | **Workload bounds (CPU / memory / I/O)** | [docs/WORKLOADS.md](./docs/WORKLOADS.md) |
+| **AWS infrastructure** | [docs/INFRASTRUCTURE.md](./docs/INFRASTRUCTURE.md) |
+| **IAM** | [docs/IAM.md](./docs/IAM.md) |
+| **Terraform (AWS)** | [terraform/README.md](./terraform/README.md) |
 | **Deploy / env vars** | [docs/DEPLOY.md](./docs/DEPLOY.md) |
 | **Parallel Artillery** | [docs/PARALLEL-BENCHMARK.md](./docs/PARALLEL-BENCHMARK.md) |
 | **Suite host ports** | [benchmarks/docs/PORTS.md](./benchmarks/docs/PORTS.md) |

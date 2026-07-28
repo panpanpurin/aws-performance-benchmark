@@ -1,0 +1,83 @@
+locals {
+  name_prefix = var.project_name
+
+  tags = merge(
+    {
+      Project     = var.project_name
+      ManagedBy   = "terraform"
+      Environment = "benchmark"
+    },
+    var.tags_extra
+  )
+
+  apps = {
+    anilove = {
+      name             = "anilove"
+      port             = 3000
+      needs_rds        = true
+      ecr_name         = "${var.project_name}/anilove"
+      health_path      = "/health"
+      db_schema_ec2    = "ec2"
+      db_schema_ecs    = "ecs"
+      db_schema_lambda = "lambda"
+      host_ec2         = var.domain_name != "" ? "anilove-ec2.${var.domain_name}" : ""
+      host_ecs         = var.domain_name != "" ? "anilove-ecs.${var.domain_name}" : ""
+    }
+    csv = {
+      name        = "csv-processor"
+      port        = 8000
+      needs_rds   = false
+      ecr_name    = "${var.project_name}/csv-processor"
+      health_path = "/health"
+      host_ec2    = var.domain_name != "" ? "csv-processor-ec2.${var.domain_name}" : ""
+      host_ecs    = var.domain_name != "" ? "csv-processor-ecs.${var.domain_name}" : ""
+    }
+    thumbnail = {
+      name        = "thumbnail-generator"
+      port        = 3001
+      needs_rds   = false
+      ecr_name    = "${var.project_name}/thumbnail-generator"
+      health_path = "/health"
+      host_ec2    = var.domain_name != "" ? "thumbnail-generator-ec2.${var.domain_name}" : ""
+      host_ecs    = var.domain_name != "" ? "thumbnail-ecs.${var.domain_name}" : ""
+    }
+  }
+
+  image_digests = {
+    anilove   = var.image_digest_anilove
+    csv       = var.image_digest_csv
+    thumbnail = var.image_digest_thumbnail
+  }
+
+  lambda_image_digests = {
+    anilove   = var.image_digest_lambda_anilove
+    csv       = var.image_digest_lambda_csv
+    thumbnail = var.image_digest_lambda_thumbnail
+  }
+
+  image_refs = {
+    for k, a in local.apps : k => (
+      local.image_digests[k] != ""
+      ? "${module.ecr.repository_urls[k]}@${local.image_digests[k]}"
+      : "${module.ecr.repository_urls[k]}:${var.ecr_image_tag}"
+    )
+  }
+
+  lambda_image_refs = {
+    for k, a in local.apps : k => (
+      local.lambda_image_digests[k] != ""
+      ? "${module.ecr.repository_urls[k]}@${local.lambda_image_digests[k]}"
+      : "${module.ecr.repository_urls[k]}:${var.ecr_lambda_image_tag}"
+    )
+  }
+
+  ec2_ami_id = var.ec2_ami_id != "" ? var.ec2_ami_id : try(data.aws_ssm_parameter.al2023_ami[0].value, "")
+  ecs_ami_id = var.ecs_ami_id != "" ? var.ecs_ami_id : try(data.aws_ssm_parameter.ecs_ami[0].value, "")
+
+  enable_https = var.domain_name != "" && var.route53_zone_id != ""
+
+  public_hostnames = merge(
+    { for k, a in local.apps : "${k}_ec2" => a.host_ec2 if a.host_ec2 != "" },
+    { for k, a in local.apps : "${k}_ecs" => a.host_ecs if a.host_ecs != "" }
+  )
+}

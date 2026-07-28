@@ -8,6 +8,11 @@
 *.key
 credentials*
 *secret*
+terraform/terraform.tfvars
+terraform/*.auto.tfvars
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
 
 # =========================
 # Node / npm

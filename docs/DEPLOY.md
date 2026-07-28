@@ -33,7 +33,7 @@ Suggested size parity (document the exact sizes used in the benchmark):
 | ECS on EC2 | Task ~1 vCPU, 1 GiB hard (e.g. on `t3.small` host) |
 | Lambda | 1024 MB memory (~1 vCPU share), 1024 MB ephemeral if needed |
 
-Region used in existing configs: **`sa-east-1`**.
+Region: **`ap-northeast-1`** (Tokyo).
 
 ---
 
@@ -59,22 +59,23 @@ Region used in existing configs: **`sa-east-1`**.
 
 \* Use distinct `DB_SCHEMA` values so one platform load test does not rewrite another platform rows.
 
-#### Shared RDS for a fairer compute comparison
+#### Shared RDS (one instance for all three platforms)
 
-A single RDS instance for AniLove on EC2, ECS, and Lambda keeps the database a controlled constant:
+**Design:** one RDS PostgreSQL for AniLove on EC2, ECS, and Lambda.
+Edge: one ALB for EC2+ECS (ACM, DNS validation in Terraform); Lambda uses Function URL HTTPS only. See [INFRASTRUCTURE.md](./INFRASTRUCTURE.md) and [terraform/README.md](../terraform/README.md).
 
 | Choice | Rationale |
 |--------|-----------|
-| Same RDS instance / DB class | DB latency and capacity stay constant; measured differences are mostly compute |
-| Separate schemas (`ec2` / `ecs` / `lambda`) | Same engine with isolated tables |
-| Same region as apps | Avoids extra network bias |
+| One RDS instance / class (e.g. `db.t4g.micro`) | DB capacity is a controlled constant; differences are mostly compute |
+| Schemas `ec2` / `ecs` / `lambda` | Data isolation without three engines |
+| Same VPC and SG pattern | No network path bias |
 
 Caveats:
 
-1. For Grafana comparison charts, run EC2 + ECS + Lambda Artillery in parallel. See [PARALLEL-BENCHMARK.md](./PARALLEL-BENCHMARK.md).
-2. Keep connection pools reasonable (`DB_POOL_MAX`).
+1. Parallel platform load tests share RDS CPU/IOPS; schemas avoid data collision only.
+2. Keep connection pools reasonable (`DB_POOL_MAX`) across three app deployments.
 3. Clear only the active schema: `DB_SCHEMA=ec2 node cleanDB.js`.
-4. Do not use different RDS classes per platform for a compute-only comparison.
+4. For Grafana platform charts, run EC2 + ECS + Lambda Artillery together. See [PARALLEL-BENCHMARK.md](./PARALLEL-BENCHMARK.md).
 
 Example (EC2 on shared RDS):
 
@@ -82,7 +83,7 @@ Example (EC2 on shared RDS):
 DB_NAME=anilove
 DB_USER=postgres
 DB_PASSWORD=password
-DB_HOST=rds.sa-east-1.rds.amazonaws.com
+DB_HOST=rds.ap-northeast-1.rds.amazonaws.com
 DB_PORT=5432
 DB_SSL=true
 DB_SSL_REJECT_UNAUTHORIZED=false

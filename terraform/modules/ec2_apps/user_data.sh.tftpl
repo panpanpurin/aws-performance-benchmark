@@ -1,0 +1,41 @@
+#!/bin/bash
+set -euo pipefail
+
+dnf update -y || true
+dnf install -y docker aws-cli jq
+systemctl enable --now docker
+
+REGION="${aws_region}"
+APP="${app_name}"
+PORT="${app_port}"
+IMAGE="${image_ref}"
+DB_SCHEMA="${db_schema}"
+
+if [[ -n "$IMAGE" ]]; then
+  ACCOUNT=$(aws sts get-caller-identity --query Account --output text --region "$REGION")
+  aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "$ACCOUNT.dkr.ecr.$REGION.amazonaws.com"
+  docker pull "$IMAGE"
+
+  ENV_ARGS=()
+  ENV_ARGS+=(-e "PORT=$PORT")
+  ENV_ARGS+=(-e "NODE_ENV=production")
+
+  if [[ "${needs_rds}" == "true" && -n "${db_secret_arn}" ]]; then
+    SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id "${db_secret_arn}" --region "$REGION" --query SecretString --output text)
+    ENV_ARGS+=(-e "DB_HOST=$(echo "$SECRET_JSON" | jq -r .host)")
+    ENV_ARGS+=(-e "DB_PORT=$(echo "$SECRET_JSON" | jq -r .port)")
+    ENV_ARGS+=(-e "DB_NAME=$(echo "$SECRET_JSON" | jq -r .dbname)")
+    ENV_ARGS+=(-e "DB_USER=$(echo "$SECRET_JSON" | jq -r .username)")
+    ENV_ARGS+=(-e "DB_PASSWORD=$(echo "$SECRET_JSON" | jq -r .password)")
+    ENV_ARGS+=(-e "DB_SCHEMA=$DB_SCHEMA")
+    ENV_ARGS+=(-e "DB_SSL=true")
+  fi
+
+  if [[ "${needs_rds}" == "true" && -n "${jwt_secret_arn}" ]]; then
+    JWT_JSON=$(aws secretsmanager get-secret-value --secret-id "${jwt_secret_arn}" --region "$REGION" --query SecretString --output text)
+    ENV_ARGS+=(-e "JWT_SECRET=$(echo "$JWT_JSON" | jq -r .JWT_SECRET)")
+  fi
+
+  docker rm -f "$APP" 2>/dev/null || true
+  docker run -d --name "$APP" --restart unless-stopped -p "$PORT:$PORT" "$${ENV_ARGS[@]}" "$IMAGE"
+fi
