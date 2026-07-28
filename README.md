@@ -6,6 +6,11 @@ Project comparing **EC2**, **ECS on EC2**, and **AWS Lambda** across three instr
 
 ---
 
+## Prerequisites
+
+- Docker Desktop with **Compose v2.20+** (root and suite stacks use `include`)
+- Node.js + npm (Artillery via `npx`; local load tests)
+
 ## Start here
 
 ```bash
@@ -15,6 +20,8 @@ make local-test           # Artillery vs localhost
 make bench-anilove        # Prometheus/Grafana for AniLove on AWS
 make artillery-anilove    # EC2+ECS+Lambda load at once (bash)
 ```
+
+Before AWS Artillery runs, set each suite `target` (currently `https://REPLACE_ME`). See [benchmarks/docs/ARTILLERY-TARGETS.md](./benchmarks/docs/ARTILLERY-TARGETS.md).
 
 | Goal | Command / link |
 |------|----------------|
@@ -82,6 +89,7 @@ Details: [docs/WORKLOADS.md](./docs/WORKLOADS.md).
 | [`benchmarks/suites/thumbnail-generator`](./benchmarks/suites/thumbnail-generator) | Thumbnail suite |
 | [`benchmarks/docs/PORTS.md`](./benchmarks/docs/PORTS.md) | Host ports for concurrent suites |
 | [`benchmarks/docs/PROMETHEUS-TARGETS.md`](./benchmarks/docs/PROMETHEUS-TARGETS.md) | Empty scrape targets to fill later |
+| [`benchmarks/docs/ARTILLERY-TARGETS.md`](./benchmarks/docs/ARTILLERY-TARGETS.md) | Artillery `target` URLs (`REPLACE_ME` until set) |
 
 Suites use **different host ports** and can run together:
 
@@ -103,7 +111,7 @@ Suites use **different host ports** and can run together:
 
 Local stack shares the AniLove port range. Do not start `benchmarks/suites/anilove` while local is up. CSV and Thumbnail suites can run alongside local.
 
-Details: [local/README.md](./local/README.md).
+Local Grafana/JWT defaults (`admin`/`admin`, sample JWT secret) are for reproducibility. Do not reuse them for production. Details: [local/README.md](./local/README.md).
 
 ---
 

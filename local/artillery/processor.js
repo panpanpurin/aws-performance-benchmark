@@ -2,10 +2,10 @@ const fs = require("fs");
 const path = require("path");
 const FormData = require("form-data");
 
-// Prefer small local fixture; fall back to data.csv if present
-const csvPath = fs.existsSync(path.resolve(__dirname, "pokes.csv"))
-  ? path.resolve(__dirname, "pokes.csv")
-  : path.resolve(__dirname, "data.csv");
+const fixturesDir = path.resolve(__dirname, "fixtures");
+const csvPath = fs.existsSync(path.join(fixturesDir, "pokes.csv"))
+  ? path.join(fixturesDir, "pokes.csv")
+  : path.join(fixturesDir, "data.csv");
 
 module.exports = {
   buildCsvRequest: function (requestParams, context, ee, next) {

@@ -1,5 +1,6 @@
 # Local stack for reproducibility: apps + Postgres + Prometheus + Grafana + pushgateways.
 # Validates instrumentation and Artillery locally; not a substitute for AWS EC2/ECS/Lambda runs.
+# Grafana admin/admin and JWT_SECRET below are for reproducibility. Do not use in production.
 #
 # From repo root:
 #   docker compose up -d --build

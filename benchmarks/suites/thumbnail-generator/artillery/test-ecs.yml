@@ -1,5 +1,6 @@
+# Set target to the ECS base URL before running (see benchmarks/docs/ARTILLERY-TARGETS.md)
 config:
-  target: "https://thumbnail-ecs.thesis-apis.click"
+  target: "https://REPLACE_ME"
   processor: "./upload-image.js"
   phases:
     # Phase 1 - Warm-up

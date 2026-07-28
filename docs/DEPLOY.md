@@ -156,7 +156,7 @@ ECR + Function URL / task definition / host Docker. Handlers:
 
 Shared stack definition: [`benchmarks/stack/`](../benchmarks/stack/).
 Each suite under `benchmarks/suites/<app>/` adds host port mappings, `prometheus.yml`, Artillery, and `grafana/dashboard.json`.
-App and node-exporter scrape `targets` in each `prometheus.yml` are empty (`[]`) by default for later fill (manual or automation). Pushgateway targets are fixed Compose service names. See [benchmarks/docs/PROMETHEUS-TARGETS.md](../benchmarks/docs/PROMETHEUS-TARGETS.md).
+App and node-exporter scrape `targets` in each `prometheus.yml` are empty (`[]`) by default for later fill (manual or automation). Pushgateway targets use Compose service names. See [benchmarks/docs/PROMETHEUS-TARGETS.md](../benchmarks/docs/PROMETHEUS-TARGETS.md).
 
 | Workload | Suite | Artillery labels |
 |----------|-------|------------------|
@@ -201,7 +201,9 @@ cd local/artillery && npm install && npm run test:all
 
 Local stack ports match AniLove (9090 / 3002 / 9092-9094). Do not start `benchmarks/suites/anilove` while local is up. CSV and Thumbnail suites can run alongside local.
 
-See [../local/README.md](../local/README.md).
+Local defaults (Grafana `admin`/`admin`, sample JWT secret) are for reproducibility and are not for production. See [../local/README.md](../local/README.md).
+
+Requires Docker Compose **v2.20+** (`include` in compose files).
 
 ---
 
@@ -211,6 +213,8 @@ See [../local/README.md](../local/README.md).
 2. AniLove uses the same RDS plus distinct `DB_SCHEMA` values.
 3. Images built from `apps/<name>/`.
 4. App/node-exporter targets filled in `benchmarks/suites/<app>/prometheus.yml` (start empty) and reachable for the suite(s) under test.
-5. Artillery `instance` labels and pushgateway ports match the suite ([PORTS.md](../benchmarks/docs/PORTS.md)).
-6. Report Lambda cold and warm results separately.
-7. If running multiple suites, use the correct Grafana/Prometheus ports for each suite.
+5. Artillery `target` set in each `test-*.yml` (default `https://REPLACE_ME`). See [ARTILLERY-TARGETS.md](../benchmarks/docs/ARTILLERY-TARGETS.md).
+6. Artillery `instance` labels and pushgateway ports match the suite ([PORTS.md](../benchmarks/docs/PORTS.md)).
+7. Report Lambda cold and warm results separately.
+8. If running multiple suites, use the correct Grafana/Prometheus ports for each suite.
+9. Do not reuse local Grafana/JWT defaults on production hosts.

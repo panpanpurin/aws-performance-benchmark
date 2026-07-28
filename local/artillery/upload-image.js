@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const FormData = require("form-data");
 
-const imagePath = path.resolve(__dirname, "sample.jpg");
+const imagePath = path.resolve(__dirname, "fixtures", "sample.jpg");
 
 module.exports = {
   buildFormData: function (requestParams, context, ee, next) {

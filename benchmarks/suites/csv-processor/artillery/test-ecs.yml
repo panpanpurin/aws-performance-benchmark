@@ -1,5 +1,6 @@
+# Set target to the ECS base URL before running (see benchmarks/docs/ARTILLERY-TARGETS.md)
 config:
-  target: "https://csv-processor-ecs.thesis-apis.click"
+  target: "https://REPLACE_ME"
   processor: "./processor.js"
 
   # ============================================================

@@ -1,6 +1,6 @@
 # CSV processor scrape config.
 # App and node-exporter targets are left empty for later fill (manual or automation).
-# Pushgateway targets stay fixed (Docker Compose service names).
+# Pushgateway targets use Docker Compose service names.
 
 global:
   scrape_interval: 5s

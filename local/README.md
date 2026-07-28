@@ -16,7 +16,7 @@ Artillery  ------------------>  Pushgateway
 
 ## Prerequisites
 
-- Docker Desktop (Compose v2.20+ recommended for root `include`)
+- Docker Desktop with **Compose v2.20+** (this stack and root wrapper use `include`)
 - Node.js + npm (for Artillery on the host)
 
 ---
@@ -47,6 +47,8 @@ docker compose ps
 | Prometheus | http://localhost:9090/targets |
 | Grafana | http://localhost:3002 (user `admin` / password `admin`) |
 | Pushgateway ECS / EC2 / Lambda | `:9092` / `:9093` / `:9094` |
+
+**Local defaults for reproducibility:** Grafana `admin`/`admin` and AniLove `JWT_SECRET=local-dev-secret-change-me` are for reproducibility. Do not use them on public or production systems. AWS suites use Grafana `admin`/`123` on their own ports (see [benchmarks/docs/PORTS.md](../benchmarks/docs/PORTS.md)).
 
 Stop:
 
@@ -92,6 +94,8 @@ Cloud suites under `benchmarks/<app>/artillery/` remain for AWS runs.
 | `test-anilove-local.yml` | `http://localhost:3000` |
 | `test-csv-local.yml` | `http://localhost:8000` |
 | `test-thumbnail-local.yml` | `http://localhost:3001` |
+
+Fixtures live under `local/artillery/fixtures/` (`pokes.csv`, `sample.jpg`).
 
 Load metrics push to `http://localhost:9093` (local EC2 pushgateway slot).
 

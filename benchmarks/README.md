@@ -5,9 +5,10 @@ AWS observability and Artillery load tests for each workload.
 ```text
 benchmarks/
 ├── README.md
-├── docs/                          # ports + prometheus target notes
+├── docs/                          # ports + target fill-in notes
 │   ├── PORTS.md
-│   └── PROMETHEUS-TARGETS.md
+│   ├── PROMETHEUS-TARGETS.md
+│   └── ARTILLERY-TARGETS.md
 ├── scripts/                       # shared run-parallel.sh / .ps1
 ├── stack/                         # shared metrics stack
 │   ├── docker-compose.yml
@@ -43,7 +44,8 @@ Each suite compose file:
 3. Maps suite-specific host ports (see [docs/PORTS.md](./docs/PORTS.md))
 4. Mounts `./prometheus.yml` on Prometheus
 
-App/node-exporter targets start empty: [docs/PROMETHEUS-TARGETS.md](./docs/PROMETHEUS-TARGETS.md).
+App/node-exporter targets start empty: [docs/PROMETHEUS-TARGETS.md](./docs/PROMETHEUS-TARGETS.md).  
+Artillery `target` URLs start as `https://REPLACE_ME`: [docs/ARTILLERY-TARGETS.md](./docs/ARTILLERY-TARGETS.md).
 
 ## Concurrent suites
 

@@ -53,3 +53,5 @@ cd thumbnail-generator/artillery && npm install
 ```
 
 Artillery itself is started via `npx artillery@2.0.23` (no global install required).
+
+Set each `test-*.yml` `target` before AWS runs (`https://REPLACE_ME` in repo). See [../docs/ARTILLERY-TARGETS.md](../docs/ARTILLERY-TARGETS.md).

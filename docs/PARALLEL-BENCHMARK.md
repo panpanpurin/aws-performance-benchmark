@@ -29,8 +29,9 @@ Artillery x3 -------+--> ECS app     --> Prometheus (instance=ecs)
 make bench-anilove      # and/or bench-csv, bench-thumbnail
 ```
 
-4. Node/npm available (`npx` pulls Artillery `2.0.23`).
+4. Node/npm available (`npx` pulls Artillery `2.0.23`). Docker Compose **v2.20+** for suite stacks.
 5. CSV and Thumbnail only: `npm install` once under the suite `artillery/` folder if `form-data` is missing.
+6. Each Artillery YAML `target` set to a real base URL (repo ships `https://REPLACE_ME`). See [ARTILLERY-TARGETS.md](../benchmarks/docs/ARTILLERY-TARGETS.md).
 
 Host ports: [benchmarks/docs/PORTS.md](../benchmarks/docs/PORTS.md).  
 Shared runner: [benchmarks/scripts/](../benchmarks/scripts/).

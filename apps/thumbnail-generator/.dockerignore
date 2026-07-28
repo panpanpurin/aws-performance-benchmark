@@ -10,4 +10,3 @@ npm-debug.log*
 Dockerfile
 Dockerfile.lambda
 .dockerignore
-package-lock.json

@@ -1,12 +1,11 @@
 # Shared Prometheus, Grafana, and pushgateways for AWS benchmark suites.
-# Not started alone: each suite under benchmarks/<app>/ includes this file
+# Not started alone: each suite under benchmarks/suites/<app>/ includes this file
 # and mounts its own prometheus.yml (per-app scrape targets).
 #
-# Default container ports are fixed inside Docker. Each suite maps different
+# Container listen ports are internal to Docker. Each suite maps different
 # HOST ports so multiple suites can run at the same time (see suite compose).
 #
-# Inside the network, Artillery still targets host-mapped pushgateways from
-# the machine running the load tests (localhost:<suite-port>).
+# Grafana admin/123 is for reproducibility. Change for shared or long-lived environments.
 #
 # Default mapping (overridden per suite):
 #   Prometheus 9090 | Grafana 3002 | PG ECS 9092 | EC2 9093 | Lambda 9094

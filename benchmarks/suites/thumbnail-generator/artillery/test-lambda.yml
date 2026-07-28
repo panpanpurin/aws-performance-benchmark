@@ -1,5 +1,6 @@
+# Set target to the Lambda Function URL before running (see benchmarks/docs/ARTILLERY-TARGETS.md)
 config:
-  target: "https://4ootdcgashmpwbmxmlcgmf5pxa0qqqda.lambda-url.sa-east-1.on.aws"
+  target: "https://REPLACE_ME"
   processor: "./upload-image.js"
   phases:
     # Phase 1 - Warm-up

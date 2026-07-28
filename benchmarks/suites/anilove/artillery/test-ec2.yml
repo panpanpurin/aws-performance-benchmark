@@ -1,5 +1,6 @@
+# Set target to the EC2 base URL before running (see benchmarks/docs/ARTILLERY-TARGETS.md)
 config:
-  target: "https://anilove-ec2.thesis-apis.click"
+  target: "https://REPLACE_ME"
   phases:
     # Phase 1 - Warm-up:
     # Gradually warms the environments without pressure.

@@ -1,5 +1,6 @@
+# Set target to the Lambda Function URL before running (see benchmarks/docs/ARTILLERY-TARGETS.md)
 config:
-  target: "https://fx4rhotvhelnxfavxta4edpeqq0cbrmb.lambda-url.sa-east-1.on.aws"
+  target: "https://REPLACE_ME"
   processor: "./processor.js"
 
   # ============================================================
