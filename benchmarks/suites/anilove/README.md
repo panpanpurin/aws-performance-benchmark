@@ -1,17 +1,16 @@
 # Benchmark suite: AniLove
 
+App source: [apps/anilove](../../../apps/anilove).
+
 ```text
 benchmarks/suites/anilove/
-├── docker-compose.yml      # includes ../../stack + host ports
-├── prometheus.yml          # scrape targets (empty until filled)
-├── grafana/
-│   └── dashboard.json
+├── docker-compose.yml
+├── prometheus.yml
+├── grafana/dashboard.json
 └── artillery/
     ├── test-ec2.yml | test-ecs.yml | test-lambda.yml
     └── run-parallel.bat | .ps1 | .sh
 ```
-
-App source: [`apps/anilove`](../../../apps/anilove).
 
 ## Metrics stack
 
@@ -24,14 +23,16 @@ docker compose up -d
 | Service | URL |
 |---------|-----|
 | Prometheus | http://localhost:9090/targets |
-| Grafana | http://localhost:3002/ (admin / `123`) |
+| Grafana | http://localhost:3002/ (`admin` / `123`) |
 | Pushgateway ECS / EC2 / Lambda | `:9092` / `:9093` / `:9094` |
 
-Other suites use different host ports. See [../../docs/PORTS.md](../../docs/PORTS.md).
+Other suites use different host ports. See [PORTS.md](../../docs/PORTS.md).
 
 Import `grafana/dashboard.json` if needed.
 
 ## Artillery
+
+Set `target` in each `test-*.yml` first ([ARTILLERY-TARGETS.md](../../docs/ARTILLERY-TARGETS.md)).
 
 ```bash
 cd artillery

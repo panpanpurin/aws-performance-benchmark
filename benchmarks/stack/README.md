@@ -9,12 +9,12 @@ Defined once and included by each suite compose file. Each suite:
 3. Keeps Artillery configs and `grafana/dashboard.json`
 
 ```bash
-# Start via a suite (not this folder alone):
+# Start via a suite (not this folder alone)
 cd benchmarks/suites/anilove
 docker compose up -d
 ```
 
-Port map: [../docs/PORTS.md](../docs/PORTS.md).
+Port map: [PORTS.md](../docs/PORTS.md).
 
 | Service | AniLove (default) | CSV | Thumbnail |
 |---------|-------------------|-----|-----------|

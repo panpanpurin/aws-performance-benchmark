@@ -1,6 +1,6 @@
 # Benchmark suite: CSV Processor
 
-App source: [`apps/csv-processor`](../../../apps/csv-processor).
+App source: [apps/csv-processor](../../../apps/csv-processor).
 
 ```text
 benchmarks/suites/csv-processor/
@@ -10,9 +10,11 @@ benchmarks/suites/csv-processor/
 └── artillery/
     ├── fixtures/          # data.csv, pokes.csv
     ├── processor.js
-    ├── package.json       # form-data only; npm install if needed
+    ├── package.json
     └── test-*.yml
 ```
+
+Set Artillery `target` before AWS runs ([ARTILLERY-TARGETS.md](../../docs/ARTILLERY-TARGETS.md)).
 
 ```bash
 cd benchmarks/suites/csv-processor
@@ -20,8 +22,7 @@ docker compose up -d
 # or: make bench-csv
 
 cd artillery
-# first time only (form-data for multipart uploads):
-npm install
+npm install   # first time (form-data)
 run-parallel.bat
 # or: make artillery-csv
 ```
@@ -29,8 +30,10 @@ run-parallel.bat
 | Service | URL |
 |---------|-----|
 | Prometheus | http://localhost:9190/targets |
-| Grafana | http://localhost:3102/ (admin / `123`) |
+| Grafana | http://localhost:3102/ (`admin` / `123`) |
 | Pushgateway ECS / EC2 / Lambda | `:9192` / `:9193` / `:9194` |
 
-Ports: [../../docs/PORTS.md](../../docs/PORTS.md).  
-Guide: [PARALLEL-BENCHMARK.md](../../../docs/PARALLEL-BENCHMARK.md).
+| Related | Link |
+|---------|------|
+| Ports | [PORTS.md](../../docs/PORTS.md) |
+| Parallel guide | [PARALLEL-BENCHMARK.md](../../../docs/PARALLEL-BENCHMARK.md) |

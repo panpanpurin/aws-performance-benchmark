@@ -1,7 +1,6 @@
 # Host ports for concurrent benchmark suites
 
-Each suite under `benchmarks/suites/<app>/` maps the shared stack to a **different host port range**.
-AniLove, CSV processor, and Thumbnail metrics stacks can run **at the same time**.
+Each suite under `benchmarks/suites/<app>/` maps the shared stack to a **different host port range**. AniLove, CSV, and Thumbnail metrics stacks can run **at the same time**.
 
 | Service | AniLove | CSV processor | Thumbnail |
 |---------|---------|---------------|-----------|
@@ -42,9 +41,9 @@ make artillery-csv
 make artillery-thumbnail
 ```
 
-Those commands may also run concurrently across suites (non-overlapping pushgateway ports).
+Those commands may also run concurrently across suites (non overlapping pushgateway ports).
 
-## Grafana / Prometheus URLs
+## Grafana and Prometheus URLs
 
 | Suite | Prometheus | Grafana |
 |-------|------------|---------|
@@ -54,7 +53,7 @@ Those commands may also run concurrently across suites (non-overlapping pushgate
 
 ## Local stack interaction
 
-`local/docker-compose.yml` uses the **AniLove** range (9090, 3002, 9092-9094).
+[local/docker-compose.yml](../../local/docker-compose.yml) uses the **AniLove** range (9090, 3002, 9092 to 9094).
 
 | Combination | OK? |
 |-------------|-----|

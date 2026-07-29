@@ -1,23 +1,19 @@
 # AniLove
 
-RESTful API for managing anime and user watchlists (MyAnimeList-style).
+RESTful API for anime and user watchlists (MyAnimeList style).
 
-**One codebase** for **EC2**, **ECS**, and **AWS Lambda**: same business logic, dual entrypoints, and Docker images.
+**One codebase** for **EC2**, **ECS**, and **AWS Lambda**: same business logic, dual entrypoints, dual Docker images.
 
-**Workload profile:** I/O- and database-bound API (not a heavy compute loop). See [docs/WORKLOADS.md](../../docs/WORKLOADS.md).
-
----
+**Workload profile:** I/O and database bound API (not a heavy compute loop). See [docs/WORKLOADS.md](../../docs/WORKLOADS.md).
 
 ## Features
 
 - CRUD for Anime
 - User registration and authentication (JWT)
-- Personal anime watchlist (status + score 0-10)
+- Personal anime watchlist (status + score 0 to 10)
 - Password hashing with bcrypt
 - PostgreSQL + Sequelize ORM
 - Prometheus metrics at `/metrics` (including Lambda cold start)
-
----
 
 ## Tech stack
 
@@ -27,15 +23,13 @@ RESTful API for managing anime and user watchlists (MyAnimeList-style).
 - prom-client
 - `@vendia/serverless-express` (Lambda only at runtime)
 
----
-
 ## Project layout
 
 ```text
 apps/anilove/
-├── src/                 # Shared application code
+├── src/                 # shared application code
 │   ├── app.js
-│   ├── metrics.js       # Unified metrics (cold start when on Lambda)
+│   ├── metrics.js
 │   ├── controllers/
 │   ├── models/
 │   └── ...
@@ -45,9 +39,12 @@ apps/anilove/
 └── Dockerfile.lambda    # Lambda container image
 ```
 
-Benchmarks: [`benchmarks/suites/anilove`](../../benchmarks/suites/anilove). Deploy guide: [`docs/DEPLOY.md`](../../docs/DEPLOY.md).
-
----
+| Related | Link |
+|---------|------|
+| Benchmarks | [benchmarks/suites/anilove](../../benchmarks/suites/anilove) |
+| Deploy | [docs/DEPLOY.md](../../docs/DEPLOY.md) |
+| Infrastructure | [docs/INFRASTRUCTURE.md](../../docs/INFRASTRUCTURE.md) |
+| Terraform | [terraform/](../../terraform/) |
 
 ## Environment variables
 
@@ -55,16 +52,16 @@ Benchmarks: [`benchmarks/suites/anilove`](../../benchmarks/suites/anilove). Depl
 |----------|-------------|
 | `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT` | PostgreSQL / RDS |
 | `DB_SSL` | TLS to DB (**default on**). Set `false` only for local Docker Postgres |
-| `DB_SSL_REJECT_UNAUTHORIZED` | `true` to verify RDS CA; default `false` (encrypted, looser verify) |
+| `DB_SSL_REJECT_UNAUTHORIZED` | `true` to verify RDS CA; default `false` |
 | `DB_SCHEMA` | Schema on shared DB: `ec2` / `ecs` / `lambda` / `public` |
 | `JWT_SECRET` | JWT signing secret |
 | `PORT` | HTTP port (default `3000`, EC2/ECS) |
 | `SERVICE_NAME` | Prometheus label (optional) |
 | `NODE_ENV` | e.g. `production` |
 
-### Shared RDS (fair benchmark)
+### Shared RDS
 
-Use **one RDS instance/database** for all three platforms so the DB is a controlled constant. Isolate data with schemas:
+Use **one** RDS instance for all three platforms. Isolate data with schemas:
 
 | Environment | `DB_SCHEMA` | Tables live in |
 |-------------|-------------|----------------|
@@ -74,9 +71,7 @@ Use **one RDS instance/database** for all three platforms so the DB is a control
 
 TLS stays enabled (`DB_SSL=true` or omit). See `.env.example`.
 
----
-
-## Local (EC2/ECS-style)
+## Local (EC2/ECS style)
 
 ```bash
 npm install
@@ -85,13 +80,11 @@ npm run dev
 NODE_ENV=production PORT=3000 npm start
 ```
 
-```bash
-http://localhost:3000/
-http://localhost:3000/health
-http://localhost:3000/metrics
-```
-
----
+| URL | Purpose |
+|-----|---------|
+| http://localhost:3000/ | App |
+| http://localhost:3000/health | Health |
+| http://localhost:3000/metrics | Prometheus |
 
 ## Docker: EC2 / ECS
 
@@ -103,8 +96,6 @@ docker run -d -p 3000:3000 --env-file apps/anilove/.env anilove:ec2-ecs
 
 Deploy the same image to ECS tasks or an EC2 host.
 
----
-
 ## Docker: AWS Lambda
 
 ```bash
@@ -112,9 +103,7 @@ docker build -t anilove:lambda -f apps/anilove/Dockerfile.lambda apps/anilove
 # Push to ECR; handler: index.handler
 ```
 
-Lambda detects `AWS_LAMBDA_FUNCTION_NAME` / `LAMBDA_TASK_ROOT` and records cold-start metrics.
-
----
+Lambda detects `AWS_LAMBDA_FUNCTION_NAME` / `LAMBDA_TASK_ROOT` and records cold start metrics.
 
 ## API surface
 
@@ -122,18 +111,16 @@ Lambda detects `AWS_LAMBDA_FUNCTION_NAME` / `LAMBDA_TASK_ROOT` and records cold-
 |--------|------|--------|
 | `GET` | `/`, `/health` | Health |
 | `POST` | `/users`, `/users/login` | Auth |
-| `GET\|PUT\|DELETE` | `/users/:id` | User (JWT on write) |
-| `CRUD` | `/animes` | Anime |
-| `CRUD` | `/users/:id/list` | Watchlist (JWT) |
+| `GET` / `PUT` / `DELETE` | `/users/:id` | User (JWT on write) |
+| CRUD | `/animes` | Anime |
+| CRUD | `/users/:id/list` | Watchlist (JWT) |
 | `GET` | `/metrics` | Prometheus |
 
----
-
-## Metrics (cross-platform)
+## Metrics (cross platform)
 
 | Metric | Notes |
 |--------|--------|
 | `app_total_execution_time_seconds` | Full `/animes` request |
-| `app_internal_processing_time_seconds` | Total − DB time |
+| `app_internal_processing_time_seconds` | Total minus DB time |
 | `app_cpu_usage_percent` / `app_ram_usage_mb` | Process gauges |
 | `app_cold_start_duration_seconds` | Lambda only |

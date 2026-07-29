@@ -1,7 +1,14 @@
 # Terraform
 
-AWS stack for the three-app EC2 / ECS / Lambda benchmark.
-Design: [docs/INFRASTRUCTURE.md](../docs/INFRASTRUCTURE.md), [docs/IAM.md](../docs/IAM.md).
+AWS stack for the three app EC2 / ECS / Lambda benchmark.
+
+**Region default:** ap-northeast-1 (Tokyo).
+
+| Related | Link |
+|---------|------|
+| Design | [docs/INFRASTRUCTURE.md](../docs/INFRASTRUCTURE.md) |
+| IAM | [docs/IAM.md](../docs/IAM.md) |
+| Images and env | [docs/DEPLOY.md](../docs/DEPLOY.md) |
 
 ## Managed resources
 
@@ -21,10 +28,10 @@ Design: [docs/INFRASTRUCTURE.md](../docs/INFRASTRUCTURE.md), [docs/IAM.md](../do
 | Lambda + Function URLs | `modules/lambda_apps` (`enable_lambda`) |
 | Remote state | `bootstrap/` |
 | Pins | AMI (var or SSM), image digests/tags, TLS policy, sizes |
-| Tags | `providers.tf` default_tags, `locals.tags` |
+| Tags | `providers.tf` `default_tags`, `locals.tags` |
 | Benchmark targets file | `generated/benchmark-targets.json` |
 
-Docker image builds, Artillery runs, Grafana dashboards under `local/` and `benchmarks/`.
+**Not** managed here: Docker builds, Artillery, Grafana under `local/` and `benchmarks/`.
 
 ## Apply order
 
@@ -36,37 +43,39 @@ terraform init
 terraform apply -var="state_bucket_name=YOUR_UNIQUE_BUCKET"
 ```
 
-Copy `backend_config` into `../versions.tf`, then `terraform init -migrate-state` in the root.
+Copy `backend_config` into `../versions.tf`, then from `terraform/`:
+
+```bash
+terraform init -migrate-state
+```
 
 ### 2. Core stack
 
-Always created: network, security groups, ECR, secrets, IAM, ALB, log groups. RDS is on by default (`enable_rds`).
+Creates network, security groups, ECR, secrets, IAM, ALB, log groups. RDS defaults on (`enable_rds`).
 
 ```bash
 cd terraform
 cp terraform.tfvars.example terraform.tfvars
-# edit domain, zone, tags as needed
+# set domain_name / route53_zone_id if you want ACM HTTPS
 terraform init
 terraform plan
 terraform apply
 ```
 
-HTTPS and DNS aliases need `domain_name` and `route53_zone_id`. Without them the ALB uses HTTP only.
+Without domain settings the ALB is HTTP only.
 
 ### 3. Images
 
-Build and push:
+| Image | Dockerfile | Default tag |
+|-------|------------|-------------|
+| EC2 / ECS | `apps/*/Dockerfile` | `latest` |
+| Lambda | `apps/*/Dockerfile.lambda` | `lambda` |
 
-| Image | Dockerfile | Suggested tag |
-|-------|------------|---------------|
-| EC2/ECS | `apps/*/Dockerfile` | `latest` or digest |
-| Lambda | `apps/*/Dockerfile.lambda` | `lambda` or digest |
-
-Use `ecr_repository_urls` from outputs. Pin digests in `tfvars` after the first push.
+Push using `ecr_repository_urls` from outputs. Pin digests in `tfvars` after the first push. Build examples: [docs/DEPLOY.md](../docs/DEPLOY.md).
 
 ### 4. Compute
 
-Set flags in `tfvars` after images exist:
+After images exist:
 
 ```hcl
 enable_ec2    = true
@@ -74,30 +83,29 @@ enable_ecs    = true
 enable_lambda = true
 ```
 
-Empty `ec2_ami_id` / `ecs_ami_id` resolve via SSM (latest AL2023 / ECS-optimized). Pin AMI ids for stable runs.
+Empty `ec2_ami_id` / `ecs_ami_id` resolve via SSM. Pin AMI ids for stable runs.
 
 ## Deploy IAM
 
-- Attach output `iam_deploy_policy_arn` to SSO or CI.
-- Or set `create_deploy_role = true` and `deploy_role_trusted_principals`.
+- Attach `iam_deploy_policy_arn` to SSO or CI.
+- Or `create_deploy_role = true` with trusted principal ARNs.
 
-Runtime roles: EC2 instance profile, ECS execution + task, Lambda per app.
+Runtime: EC2 instance profile, ECS execution + task (+ container instance), Lambda per app.
 
-## Outputs
+## Outputs for benchmarks
 
 | Output | Use |
 |--------|-----|
-| `alb_dns_name`, `public_hostnames` | Artillery / Prometheus EC2+ECS |
-| `lambda_function_urls` | Artillery / Prometheus Lambda |
-| `ecr_repository_urls` | docker push |
-| `rds_address` | debug / secret contents |
-| `security_group_ids`, `log_group_names` | ops |
+| `alb_dns_name`, `public_hostnames` | Artillery / Prometheus (EC2, ECS) |
+| `lambda_function_urls` | Artillery / Prometheus (Lambda) |
+| `ecr_repository_urls` | `docker push` |
+| `rds_address` | AniLove DB host |
 | `benchmark_targets_file` | `generated/benchmark-targets.json` |
 
-Copy hostnames and Function URLs into:
+Fill:
 
-- `benchmarks/suites/*/prometheus.yml`
-- `benchmarks/suites/*/artillery/test-*.yml`
+- [benchmarks/docs/ARTILLERY-TARGETS.md](../benchmarks/docs/ARTILLERY-TARGETS.md)
+- [benchmarks/docs/PROMETHEUS-TARGETS.md](../benchmarks/docs/PROMETHEUS-TARGETS.md)
 
 ## Layout
 
@@ -107,5 +115,5 @@ terraform/
   terraform.tfvars.example
   bootstrap/
   modules/
-  generated/          # gitignored; targets JSON
+  generated/          # gitignored
 ```

@@ -1,27 +1,38 @@
-# Artillery load-test targets
+# Artillery load test targets
 
-AWS Artillery configs live under `benchmarks/suites/<app>/artillery/test-*.yml`.
+Configs: `benchmarks/suites/<app>/artillery/test-*.yml`.
 
-Each file has:
+Each file ships with:
 
 ```yaml
 config:
   target: "https://REPLACE_ME"
 ```
 
-Replace `https://REPLACE_ME` with the real base URL before running load tests.
+Set a real base URL **before** AWS load tests.
 
-| Suite | File | Typical target |
-|-------|------|----------------|
-| AniLove | `test-ec2.yml` | EC2 HTTPS base URL |
-| AniLove | `test-ecs.yml` | ECS/ALB HTTPS base URL |
-| AniLove | `test-lambda.yml` | Lambda Function URL |
-| CSV | same pattern | CSV service base URLs |
-| Thumbnail | same pattern | Thumbnail service base URLs |
+## Where to get URLs
 
-Local Artillery configs under `local/artillery/` already use localhost and do not need this step.
+After `terraform apply` (with DNS and/or compute enabled):
 
-Pushgateway ports (already set per suite):
+| Source | Contents |
+|--------|----------|
+| `terraform output public_hostnames` | EC2/ECS hostnames (when domain is set) |
+| `terraform output lambda_function_urls` | Function URL per app |
+| `terraform output alb_dns_name` | ALB DNS (Host header or HTTP base if no domain) |
+| `terraform/generated/benchmark-targets.json` | Combined file when `write_benchmark_targets = true` |
+
+| Suite file | Typical target |
+|------------|----------------|
+| `test-ec2.yml` | `https://anilove-ec2.<domain>` (or app equivalent) |
+| `test-ecs.yml` | `https://anilove-ecs.<domain>` |
+| `test-lambda.yml` | Function URL from output (includes `https://`) |
+
+Same pattern for CSV and Thumbnail suite files.
+
+Local configs under `local/artillery/` already use localhost.
+
+## Pushgateway ports (already set in YAML)
 
 | Suite | ECS | EC2 | Lambda |
 |-------|-----|-----|--------|
@@ -29,4 +40,7 @@ Pushgateway ports (already set per suite):
 | CSV | 9192 | 9193 | 9194 |
 | Thumbnail | 9292 | 9293 | 9294 |
 
-See also [PORTS.md](./PORTS.md) and [PROMETHEUS-TARGETS.md](./PROMETHEUS-TARGETS.md).
+| Related | Link |
+|---------|------|
+| Ports | [PORTS.md](./PORTS.md) |
+| Prometheus | [PROMETHEUS-TARGETS.md](./PROMETHEUS-TARGETS.md) |

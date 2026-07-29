@@ -17,4 +17,4 @@
 
 Or from repo root: `make artillery-anilove` (and csv / thumbnail).
 
-Thin wrappers under each suite `artillery/` call these scripts so local discovery stays easy.
+Thin wrappers under each suite `artillery/` call these scripts.

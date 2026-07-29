@@ -4,9 +4,7 @@ Node.js + Express + Sharp API that resizes uploaded images.
 
 **One codebase** for **EC2**, **ECS**, and **AWS Lambda**.
 
-**Workload profile:** CPU-bound media processing with short memory peaks (Sharp). See [docs/WORKLOADS.md](../../docs/WORKLOADS.md).
-
----
+**Workload profile:** CPU bound media processing with short memory peaks (Sharp). See [docs/WORKLOADS.md](../../docs/WORKLOADS.md).
 
 ## Features
 
@@ -16,8 +14,6 @@ Node.js + Express + Sharp API that resizes uploaded images.
 - Prometheus metrics (total + Sharp internal + CPU/RAM; cold start on Lambda)
 
 Total execution is measured **after** multer parses the body so EC2/ECS and Lambda Function URL compare the same phase.
-
----
 
 ## Project layout
 
@@ -35,9 +31,12 @@ apps/thumbnail-generator/
 └── Dockerfile.lambda
 ```
 
-Benchmarks: [`benchmarks/suites/thumbnail-generator`](../../benchmarks/suites/thumbnail-generator). Deploy: [`docs/DEPLOY.md`](../../docs/DEPLOY.md).
-
----
+| Related | Link |
+|---------|------|
+| Benchmarks | [benchmarks/suites/thumbnail-generator](../../benchmarks/suites/thumbnail-generator) |
+| Deploy | [docs/DEPLOY.md](../../docs/DEPLOY.md) |
+| Infrastructure | [docs/INFRASTRUCTURE.md](../../docs/INFRASTRUCTURE.md) |
+| Terraform | [terraform/](../../terraform/) |
 
 ## Local
 
@@ -46,8 +45,6 @@ npm install
 npm start
 # default port 3001
 ```
-
----
 
 ## Docker: EC2 / ECS
 
@@ -64,8 +61,6 @@ docker build -t thumbnail-generator:lambda -f apps/thumbnail-generator/Dockerfil
 # Handler: index.handler
 ```
 
----
-
 ## API
 
 | Method | Path | Description |
@@ -74,4 +69,4 @@ docker build -t thumbnail-generator:lambda -f apps/thumbnail-generator/Dockerfil
 | `GET` | `/health` | Health |
 | `GET` | `/metrics` | Prometheus |
 
-Sharp cache is disabled and concurrency is set to `1` for fair 1-vCPU comparison.
+Sharp cache is disabled and concurrency is set to `1` for fair 1 vCPU comparison.

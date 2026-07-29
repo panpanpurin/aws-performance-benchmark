@@ -1,10 +1,12 @@
 # IAM: deploy path and runtime roles
 
 Roles for Terraform applies and for apps at runtime.
-Architecture: [INFRASTRUCTURE.md](./INFRASTRUCTURE.md).
-Code: `terraform/modules/iam`.
 
----
+| Related | Link |
+|---------|------|
+| Architecture | [INFRASTRUCTURE.md](./INFRASTRUCTURE.md) |
+| Code | `terraform/modules/iam` |
+| ECS host role | also under `modules/ecs_cluster` |
 
 ## Deploy path
 
@@ -12,14 +14,12 @@ Who runs `terraform plan/apply` and pushes images to ECR.
 
 | Principal | Purpose |
 |-----------|---------|
-| Deploy policy (SSO or CI) | Attach `iam_deploy_policy_arn` from Terraform outputs |
-| Deploy role (optional) | `create_deploy_role = true` + trusted principal ARNs |
+| Deploy policy | Attach output `iam_deploy_policy_arn` to SSO or CI |
+| Deploy role (optional) | `create_deploy_role = true` + `deploy_role_trusted_principals` |
 
-Capabilities: VPC, ALB, EC2, ECS, Lambda, ECR, RDS, Secrets Manager, ACM, Route 53 (project zone), CloudWatch Logs, state S3/DynamoDB, `iam:PassRole` only for project roles (`<project>-*`).
+Covers VPC, ALB, EC2, ECS, Lambda, ECR, RDS, Secrets Manager, ACM, Route 53 (project zone), CloudWatch Logs, state S3/DynamoDB, and `iam:PassRole` only for project roles (`<project>-*`).
 
-Do not use long-lived admin access keys in the repo or images.
-
----
+Do not put long lived admin access keys in the repo or images.
 
 ## Runtime roles
 
@@ -36,11 +36,15 @@ Shared by the three app instances.
 
 ### ECS execution (`ecs-execution`)
 
-ECS agent: ECR pull, log streams, secret injection from the task definition.
+Agent: ECR pull, log streams, secret injection from the task definition.
 
 ### ECS task (`ecs-task`)
 
-App process. AniLove may read secrets if not only injected at start. CSV/Thumbnail do not need a task role for secrets when injection is used.
+App process. AniLove may read secrets if not only injected at start. CSV and Thumbnail usually need no task role secrets when injection is used.
+
+### ECS container instance (`ecs-instance`)
+
+Created with the ECS module: ECS agent and SSM on capacity hosts.
 
 ### Lambda (`lambda-<app>`)
 
@@ -50,41 +54,27 @@ App process. AniLove may read secrets if not only injected at start. CSV/Thumbna
 | AniLove | Secrets + VPC ENI (private RDS) |
 | CSV / Thumbnail | Logs only |
 
----
-
 ## Secrets
 
-| Secret path | Contents | Used by |
-|-------------|----------|---------|
-| `<project>/anilove/db` | username, password, host, port, dbname | AniLove on all platforms |
-| `<project>/anilove/jwt` | JWT_SECRET | AniLove on all platforms |
+| Path | Contents | Used by |
+|------|----------|---------|
+| `<project>/anilove/db` | username, password, host, port, dbname | AniLove all platforms |
+| `<project>/anilove/jwt` | JWT_SECRET | AniLove all platforms |
 
-`DB_SCHEMA` is set per platform in Terraform/env (`ec2` / `ecs` / `lambda`), not in the shared secret.
-
----
+`DB_SCHEMA` is set per platform in env or Terraform, not in these secrets.
 
 ## PassRole
 
-Deploy may pass only:
-
-- EC2 instance role  
-- ECS execution and task roles  
-- Lambda execution roles  
-
-ARNs match roles created by this stack.
-
----
+Deploy may pass only EC2 app role, ECS execution and task roles, and Lambda execution roles created by this stack.
 
 ## Tags
 
-Same defaults as other resources: `Project`, `ManagedBy=terraform`, `Component=iam`.
-
----
+Defaults: `Project`, `ManagedBy=terraform`, `Component=iam` (plus stack tags).
 
 ## Checklist
 
-1. No access keys in git or images.  
-2. Deploy via SSO, role assumption, or CI OIDC.  
-3. Runtime roles exist for EC2, ECS, Lambda.  
-4. Secrets limited by ARN.  
-5. PassRole limited to project roles.  
+1. No access keys in git or images.
+2. Deploy via SSO, role assumption, or CI OIDC.
+3. Runtime roles exist for EC2, ECS, and Lambda.
+4. Secrets limited by ARN.
+5. PassRole limited to project roles.

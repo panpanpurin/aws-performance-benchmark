@@ -1,15 +1,13 @@
 # AWS Performance Benchmark
 
-Project comparing **EC2**, **ECS on EC2**, and **AWS Lambda** across three instrumented workloads.
+Compare **EC2**, **ECS on EC2**, and **AWS Lambda** with three instrumented workloads.
 
-> Compare **platforms**, not different app forks: one codebase per app, dual entrypoints, dual Docker images.
-
----
+One codebase per app, dual entrypoints, dual Docker images. Compare platforms, not different forks.
 
 ## Prerequisites
 
-- Docker Desktop with **Compose v2.20+** (root and suite stacks use `include`)
-- Node.js + npm (Artillery via `npx`; local load tests)
+- Docker Desktop with Compose **v2.20+** (root and suite stacks use `include`)
+- Node.js and npm (Artillery via `npx`; local load tests)
 
 ## Start here
 
@@ -17,40 +15,40 @@ Project comparing **EC2**, **ECS on EC2**, and **AWS Lambda** across three instr
 make help                 # list common commands
 make local-up             # apps + metrics on Docker
 make local-test           # Artillery vs localhost
-make bench-anilove        # Prometheus/Grafana for AniLove on AWS
-make artillery-anilove    # EC2+ECS+Lambda load at once (bash)
+make bench-anilove        # Prometheus/Grafana for AniLove
+make artillery-anilove    # EC2 + ECS + Lambda load (bash)
 ```
 
-Before AWS Artillery runs, set each suite `target` (currently `https://REPLACE_ME`). See [benchmarks/docs/ARTILLERY-TARGETS.md](./benchmarks/docs/ARTILLERY-TARGETS.md).
+Default AWS region: **ap-northeast-1** (Tokyo).
 
-| Goal | Command / link |
-|------|----------------|
-| **Local path** | `make local-up` then `make local-test` |
-| **AWS load + charts (one suite)** | `make bench-anilove` then `make artillery-anilove` |
-| **All three suites together** | `make bench-anilove bench-csv bench-thumbnail` then artillery targets (see ports) |
-| **Workload bounds (CPU / memory / I/O)** | [docs/WORKLOADS.md](./docs/WORKLOADS.md) |
-| **AWS infrastructure** | [docs/INFRASTRUCTURE.md](./docs/INFRASTRUCTURE.md) |
-| **IAM** | [docs/IAM.md](./docs/IAM.md) |
-| **Terraform (AWS)** | [terraform/README.md](./terraform/README.md) |
-| **Deploy / env vars** | [docs/DEPLOY.md](./docs/DEPLOY.md) |
-| **Parallel Artillery** | [docs/PARALLEL-BENCHMARK.md](./docs/PARALLEL-BENCHMARK.md) |
-| **Suite host ports** | [benchmarks/docs/PORTS.md](./benchmarks/docs/PORTS.md) |
-| **All docs** | [docs/README.md](./docs/README.md) |
+Before AWS Artillery, set each suite `target` (repo ships `https://REPLACE_ME`). Use Terraform outputs or [ARTILLERY-TARGETS.md](./benchmarks/docs/ARTILLERY-TARGETS.md).
 
----
+| Goal | Where |
+|------|--------|
+| Local path | `make local-up` then `make local-test` |
+| Deploy AWS infra | [terraform/README.md](./terraform/README.md) |
+| AWS load + charts (one suite) | `make bench-anilove` then `make artillery-anilove` |
+| All three suites together | `make bench-anilove bench-csv bench-thumbnail` |
+| Workload bounds | [docs/WORKLOADS.md](./docs/WORKLOADS.md) |
+| Infrastructure design | [docs/INFRASTRUCTURE.md](./docs/INFRASTRUCTURE.md) |
+| IAM | [docs/IAM.md](./docs/IAM.md) |
+| Deploy, images, env | [docs/DEPLOY.md](./docs/DEPLOY.md) |
+| Parallel Artillery | [docs/PARALLEL-BENCHMARK.md](./docs/PARALLEL-BENCHMARK.md) |
+| Suite host ports | [benchmarks/docs/PORTS.md](./benchmarks/docs/PORTS.md) |
+| Full doc index | [docs/README.md](./docs/README.md) |
 
 ## Repository layout
 
 ```text
-apps/                         # one codebase per workload (EC2 / ECS / Lambda)
+apps/                         # one codebase per workload
   anilove/
   csv-processor/
   thumbnail-generator/
 
 benchmarks/                   # AWS metrics suites + Artillery
-  docs/                       # ports, Prometheus and Artillery targets
-  scripts/                    # shared run-parallel runners
-  stack/                      # shared Prometheus + Grafana + pushgateways
+  docs/
+  scripts/
+  stack/
   suites/
     anilove/
     csv-processor/
@@ -61,23 +59,23 @@ local/                        # local apps + metrics + Artillery
   artillery/
 
 terraform/                    # AWS infrastructure (Tokyo default)
-  bootstrap/                  # remote state bucket + lock table
+  bootstrap/
   modules/
 
-docs/                         # deploy, workloads, IAM, infrastructure
+docs/
 docker-compose.yml            # includes local/
 Makefile
 ```
 
-### Apps (`apps/`)
+## Apps
 
 | Folder | Workload | Stack | Entrypoints |
 |--------|----------|-------|-------------|
-| [`apps/anilove`](./apps/anilove) | REST + PostgreSQL | Node / Express / Sequelize | `server.js` / `index.handler` |
-| [`apps/csv-processor`](./apps/csv-processor) | CSV filter / aggregate | Python / FastAPI / pandas | `uvicorn` / `app.main.handler` |
-| [`apps/thumbnail-generator`](./apps/thumbnail-generator) | Image resize | Node / Express / Sharp | `server.js` / `index.handler` |
+| [apps/anilove](./apps/anilove) | REST + PostgreSQL | Node / Express / Sequelize | `server.js` / `index.handler` |
+| [apps/csv-processor](./apps/csv-processor) | CSV filter / aggregate | Python / FastAPI / pandas | `uvicorn` / `app.main.handler` |
+| [apps/thumbnail-generator](./apps/thumbnail-generator) | Image resize | Node / Express / Sharp | `server.js` / `index.handler` |
 
-Each app: `Dockerfile` (EC2/ECS) + `Dockerfile.lambda` + `/metrics`.
+Each app has `Dockerfile` (EC2/ECS), `Dockerfile.lambda`, and `/metrics`.
 
 | App | Dominant bound |
 |-----|----------------|
@@ -87,27 +85,25 @@ Each app: `Dockerfile` (EC2/ECS) + `Dockerfile.lambda` + `/metrics`.
 
 Details: [docs/WORKLOADS.md](./docs/WORKLOADS.md).
 
-### Benchmarks (`benchmarks/`)
+## Benchmarks
 
-| Folder | Role |
-|--------|------|
-| [`benchmarks/stack`](./benchmarks/stack) | Shared metrics stack (included by each suite) |
-| [`benchmarks/suites/anilove`](./benchmarks/suites/anilove) | AniLove scrape targets + Artillery + dashboard |
-| [`benchmarks/suites/csv-processor`](./benchmarks/suites/csv-processor) | CSV suite |
-| [`benchmarks/suites/thumbnail-generator`](./benchmarks/suites/thumbnail-generator) | Thumbnail suite |
-| [`benchmarks/docs/PORTS.md`](./benchmarks/docs/PORTS.md) | Host ports for concurrent suites |
-| [`benchmarks/docs/PROMETHEUS-TARGETS.md`](./benchmarks/docs/PROMETHEUS-TARGETS.md) | Empty scrape targets to fill later |
-| [`benchmarks/docs/ARTILLERY-TARGETS.md`](./benchmarks/docs/ARTILLERY-TARGETS.md) | Artillery `target` URLs (`REPLACE_ME` until set) |
+| Path | Role |
+|------|------|
+| [benchmarks/stack](./benchmarks/stack) | Shared Prometheus, Grafana, pushgateways |
+| [benchmarks/suites/anilove](./benchmarks/suites/anilove) | AniLove suite |
+| [benchmarks/suites/csv-processor](./benchmarks/suites/csv-processor) | CSV suite |
+| [benchmarks/suites/thumbnail-generator](./benchmarks/suites/thumbnail-generator) | Thumbnail suite |
+| [benchmarks/docs/PORTS.md](./benchmarks/docs/PORTS.md) | Host ports for concurrent suites |
+| [benchmarks/docs/PROMETHEUS-TARGETS.md](./benchmarks/docs/PROMETHEUS-TARGETS.md) | Empty scrape targets to fill later |
+| [benchmarks/docs/ARTILLERY-TARGETS.md](./benchmarks/docs/ARTILLERY-TARGETS.md) | Artillery base URLs |
 
-Suites use **different host ports** and can run together:
-
-| Suite | Prometheus | Grafana | Pushgateways (ECS/EC2/Lambda) |
-|-------|------------|---------|-------------------------------|
+| Suite | Prometheus | Grafana | Pushgateways (ECS / EC2 / Lambda) |
+|-------|------------|---------|-----------------------------------|
 | AniLove | 9090 | 3002 | 9092 / 9093 / 9094 |
 | CSV | 9190 | 3102 | 9192 / 9193 / 9194 |
 | Thumbnail | 9290 | 3202 | 9292 / 9293 / 9294 |
 
-### Local
+## Local
 
 | URL | Service |
 |-----|---------|
@@ -115,14 +111,12 @@ Suites use **different host ports** and can run together:
 | http://localhost:8000 | CSV |
 | http://localhost:3001 | Thumbnail |
 | http://localhost:9090 | Prometheus |
-| http://localhost:3002 | Grafana (`admin`/`admin`) |
+| http://localhost:3002 | Grafana (`admin` / `admin`) |
 
-Local stack shares the AniLove port range. Do not start `benchmarks/suites/anilove` while local is up. CSV and Thumbnail suites can run alongside local.
+Local ports match the AniLove suite. Do not run `benchmarks/suites/anilove` while local is up. CSV and Thumbnail suites can run alongside local.
 
-Local Grafana/JWT defaults (`admin`/`admin`, sample JWT secret) are local-only. Do not use them in production. Details: [local/README.md](./local/README.md).
-
----
+Local Grafana and JWT defaults are for local use only. Details: [local/README.md](./local/README.md).
 
 ## License
 
-MIT - see [LICENSE](./LICENSE).
+MIT. See [LICENSE](./LICENSE).
