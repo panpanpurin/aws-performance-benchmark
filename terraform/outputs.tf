@@ -62,12 +62,12 @@ output "lambda_image_refs" {
 
 output "ec2_ami_id" {
   description = "Resolved EC2 AMI id."
-  value       = local.ec2_ami_id
+  value       = nonsensitive(local.ec2_ami_id)
 }
 
 output "ecs_ami_id" {
   description = "Resolved ECS AMI id."
-  value       = local.ecs_ami_id
+  value       = nonsensitive(local.ecs_ami_id)
 }
 
 output "ec2_instance_ids" {

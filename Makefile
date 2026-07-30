@@ -1,11 +1,8 @@
-# Local stack, Artillery, AWS benchmark suites, and Terraform.
-# Needs Docker Compose and Node/npm. On Windows use Git Bash or WSL for make.
+# Run from repo root. Relative paths avoid Windows/Make bugs with special chars in the absolute path.
 #
 #   make help
-#   make local-up
-#   make local-test
-#   make bench-anilove
-#   make artillery-anilove
+#   make plan
+#   make apply
 #   make destroy
 
 .PHONY: help \
@@ -16,9 +13,6 @@
 	artillery-anilove artillery-csv artillery-thumbnail \
 	artillery-install \
 	init plan apply destroy output
-
-ROOT := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
-TF_DIR := $(ROOT)terraform
 
 help:
 	@echo ""
@@ -50,76 +44,76 @@ help:
 	@echo ""
 
 local-up:
-	docker compose -f $(ROOT)docker-compose.yml up -d --build
+	docker compose -f docker-compose.yml up -d --build
 
 local-down:
-	docker compose -f $(ROOT)docker-compose.yml down
+	docker compose -f docker-compose.yml down
 
 local-ps:
-	docker compose -f $(ROOT)docker-compose.yml ps
+	docker compose -f docker-compose.yml ps
 
 local-logs:
-	docker compose -f $(ROOT)docker-compose.yml logs -f
+	docker compose -f docker-compose.yml logs -f
 
 local-rebuild:
-	docker compose -f $(ROOT)docker-compose.yml down -v
-	docker compose -f $(ROOT)docker-compose.yml up -d --build
+	docker compose -f docker-compose.yml down -v
+	docker compose -f docker-compose.yml up -d --build
 
 artillery-install:
-	cd $(ROOT)local/artillery && npm install
+	cd local/artillery && npm install
 
 local-test: artillery-install
-	cd $(ROOT)local/artillery && npm run test:all
+	cd local/artillery && npm run test:all
 
 local-test-anilove: artillery-install
-	cd $(ROOT)local/artillery && npm run test:anilove
+	cd local/artillery && npm run test:anilove
 
 local-test-csv: artillery-install
-	cd $(ROOT)local/artillery && npm run test:csv
+	cd local/artillery && npm run test:csv
 
 local-test-thumbnail: artillery-install
-	cd $(ROOT)local/artillery && npm run test:thumbnail
+	cd local/artillery && npm run test:thumbnail
 
 bench-anilove:
-	cd $(ROOT)benchmarks/suites/anilove && docker compose up -d
+	cd benchmarks/suites/anilove && docker compose up -d
 
 bench-csv:
-	cd $(ROOT)benchmarks/suites/csv-processor && docker compose up -d
+	cd benchmarks/suites/csv-processor && docker compose up -d
 
 bench-thumbnail:
-	cd $(ROOT)benchmarks/suites/thumbnail-generator && docker compose up -d
+	cd benchmarks/suites/thumbnail-generator && docker compose up -d
 
 bench-down-anilove:
-	cd $(ROOT)benchmarks/suites/anilove && docker compose down
+	cd benchmarks/suites/anilove && docker compose down
 
 bench-down-csv:
-	cd $(ROOT)benchmarks/suites/csv-processor && docker compose down
+	cd benchmarks/suites/csv-processor && docker compose down
 
 bench-down-thumbnail:
-	cd $(ROOT)benchmarks/suites/thumbnail-generator && docker compose down
+	cd benchmarks/suites/thumbnail-generator && docker compose down
 
 artillery-anilove:
-	bash $(ROOT)benchmarks/scripts/run-parallel.sh anilove
+	bash benchmarks/scripts/run-parallel.sh anilove
 
 artillery-csv:
-	bash $(ROOT)benchmarks/scripts/run-parallel.sh csv-processor
+	bash benchmarks/scripts/run-parallel.sh csv-processor
 
 artillery-thumbnail:
-	bash $(ROOT)benchmarks/scripts/run-parallel.sh thumbnail-generator
+	bash benchmarks/scripts/run-parallel.sh thumbnail-generator
 
 # Terraform main stack only (keeps remote state backend)
 
 init:
-	cd $(TF_DIR) && terraform init
+	cd terraform && terraform init
 
 plan:
-	cd $(TF_DIR) && terraform plan
+	cd terraform && terraform plan
 
 apply:
-	cd $(TF_DIR) && terraform apply
+	cd terraform && terraform apply
 
 destroy:
-	cd $(TF_DIR) && terraform destroy -auto-approve
+	cd terraform && terraform destroy -auto-approve
 
 output:
-	cd $(TF_DIR) && terraform output
+	cd terraform && terraform output

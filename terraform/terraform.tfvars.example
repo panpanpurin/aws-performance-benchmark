@@ -21,7 +21,7 @@ lambda_ephemeral_mb = 1024
 lambda_timeout_s    = 30
 
 rds_instance_class    = "db.t4g.micro"
-rds_engine_version    = "17.4"
+rds_engine_version    = "17.6"
 rds_allocated_storage = 20
 rds_db_name           = "anilove"
 rds_username          = "anilove"
