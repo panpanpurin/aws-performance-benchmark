@@ -33,6 +33,20 @@ AWS stack for the three app EC2 / ECS / Lambda benchmark.
 
 **Not** managed here: Docker builds, Artillery, Grafana under `local/` and `benchmarks/`.
 
+Instance sizes stay on the current defaults (burstable) until the stack is fully wired.
+
+## Makefile (from repo root)
+
+| Target | Action |
+|--------|--------|
+| `make init` | `terraform init` in `terraform/` |
+| `make plan` | `terraform plan` |
+| `make apply` | `terraform apply` (interactive confirm) |
+| `make destroy` | Destroy **main stack** with `-auto-approve` |
+| `make output` | `terraform output` |
+
+`make destroy` removes VPC, ALB, RDS, compute, etc. It does **not** delete the state backend (`terraform/bootstrap` S3 + DynamoDB). Re-apply with `make apply` when you need the stack again.
+
 ## Apply order
 
 ### 1. State backend (once)
