@@ -16,12 +16,11 @@ terraform {
     }
   }
 
-  # After bootstrap/, uncomment and set bucket/table names:
-  # backend "s3" {
-  #   bucket         = "YOUR_TF_STATE_BUCKET"
-  #   key            = "aws-performance-benchmark/terraform.tfstate"
-  #   region         = "ap-northeast-1"
-  #   dynamodb_table = "YOUR_TF_LOCK_TABLE"
-  #   encrypt        = true
-  # }
+  backend "s3" {
+    bucket         = "dev-benchmark-tfstate-976902183321"
+    key            = "aws-performance-benchmark/terraform.tfstate"
+    region         = "ap-northeast-1"
+    dynamodb_table = "aws-perf-bench-tf-locks"
+    encrypt        = true
+  }
 }
