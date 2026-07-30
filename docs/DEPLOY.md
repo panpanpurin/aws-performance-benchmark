@@ -118,20 +118,24 @@ docker build -t thumbnail-generator:ec2-ecs -f apps/thumbnail-generator/Dockerfi
 docker build -t thumbnail-generator:lambda  -f apps/thumbnail-generator/Dockerfile.lambda apps/thumbnail-generator
 ```
 
-### Push to ECR
+### Push to ECR (automated)
 
-After `terraform apply`, use `ecr_repository_urls` from outputs (region `ap-northeast-1`):
+After core `terraform apply` (ECR repos exist), from the **repo root**:
+
+```powershell
+# Windows PowerShell (Docker Desktop running, AWS CLI configured)
+make push-images
+# or one app: make push-anilove | make push-csv | make push-thumbnail
+# or: .\scripts\push-ecr.ps1 -App all
+```
 
 ```bash
-aws ecr get-login-password --region ap-northeast-1 \
-  | docker login --username AWS --password-stdin ACCOUNT.dkr.ecr.ap-northeast-1.amazonaws.com
-
-docker tag anilove:ec2-ecs ACCOUNT.dkr.ecr.ap-northeast-1.amazonaws.com/aws-perf-bench/anilove:latest
-docker tag anilove:lambda  ACCOUNT.dkr.ecr.ap-northeast-1.amazonaws.com/aws-perf-bench/anilove:lambda
-docker push ACCOUNT.dkr.ecr.ap-northeast-1.amazonaws.com/aws-perf-bench/anilove:latest
-docker push ACCOUNT.dkr.ecr.ap-northeast-1.amazonaws.com/aws-perf-bench/anilove:lambda
-# same pattern for csv-processor and thumbnail-generator
+# Git Bash / Linux / macOS
+./scripts/push-ecr.sh
+# or: ./scripts/push-ecr.sh anilove
 ```
+
+The script logs in to ECR, builds `Dockerfile` → `:latest` and `Dockerfile.lambda` → `:lambda`, and pushes all three apps (account id from `aws sts get-caller-identity`, region default `ap-northeast-1`).
 
 Default tags in Terraform: `ecr_image_tag=latest` (EC2/ECS), `ecr_lambda_image_tag=lambda`. Prefer digests in `tfvars` after the first push.
 

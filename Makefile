@@ -4,6 +4,7 @@
 #   make plan
 #   make apply
 #   make destroy
+#   make push-images
 
 .PHONY: help \
 	local-up local-down local-ps local-logs local-rebuild \
@@ -12,7 +13,8 @@
 	bench-down-anilove bench-down-csv bench-down-thumbnail \
 	artillery-anilove artillery-csv artillery-thumbnail \
 	artillery-install \
-	init plan apply destroy output
+	init plan apply destroy output \
+	push-images push-anilove push-csv push-thumbnail
 
 help:
 	@echo ""
@@ -41,6 +43,10 @@ help:
 	@echo "  make destroy           destroy ALL main-stack resources (-auto-approve)"
 	@echo "  make output            terraform output"
 	@echo "  (does not destroy S3/DynamoDB state backend under terraform/bootstrap)"
+	@echo ""
+	@echo "ECR images (needs Docker + AWS CLI; region ap-northeast-1)"
+	@echo "  make push-images       build+push all apps (latest + lambda)"
+	@echo "  make push-anilove|push-csv|push-thumbnail"
 	@echo ""
 
 local-up:
@@ -117,3 +123,17 @@ destroy:
 
 output:
 	cd terraform && terraform output
+
+# ECR: build and push (PowerShell on Windows; use scripts/push-ecr.sh on Git Bash/Linux)
+
+push-images:
+	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/push-ecr.ps1 -App all
+
+push-anilove:
+	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/push-ecr.ps1 -App anilove
+
+push-csv:
+	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/push-ecr.ps1 -App csv
+
+push-thumbnail:
+	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/push-ecr.ps1 -App thumbnail

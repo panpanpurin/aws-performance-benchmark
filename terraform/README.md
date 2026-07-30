@@ -85,7 +85,15 @@ Without domain settings the ALB is HTTP only.
 | EC2 / ECS | `apps/*/Dockerfile` | `latest` |
 | Lambda | `apps/*/Dockerfile.lambda` | `lambda` |
 
-Push using `ecr_repository_urls` from outputs. Pin digests in `tfvars` after the first push. Build examples: [docs/DEPLOY.md](../docs/DEPLOY.md).
+From repo root (Docker + AWS CLI):
+
+```bash
+make push-images
+# Windows: .\scripts\push-ecr.ps1
+# Unix:    ./scripts/push-ecr.sh
+```
+
+Pin digests in `tfvars` after the first push. Details: [docs/DEPLOY.md](../docs/DEPLOY.md).
 
 ### 4. Compute
 

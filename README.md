@@ -27,6 +27,7 @@ Before AWS Artillery, set each suite `target` (repo ships `https://REPLACE_ME`).
 |------|--------|
 | Local path | `make local-up` then `make local-test` |
 | Deploy AWS infra | [terraform/README.md](./terraform/README.md) |
+| Push images to ECR | `make push-images` ([docs/DEPLOY.md](./docs/DEPLOY.md)) |
 | AWS load + charts (one suite) | `make bench-anilove` then `make artillery-anilove` |
 | All three suites together | `make bench-anilove bench-csv bench-thumbnail` |
 | Workload bounds | [docs/WORKLOADS.md](./docs/WORKLOADS.md) |
