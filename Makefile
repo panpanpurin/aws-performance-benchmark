@@ -1,4 +1,4 @@
-# Local stack, Artillery, and AWS benchmark suites.
+# Local stack, Artillery, AWS benchmark suites, and Terraform.
 # Needs Docker Compose and Node/npm. On Windows use Git Bash or WSL for make.
 #
 #   make help
@@ -6,6 +6,7 @@
 #   make local-test
 #   make bench-anilove
 #   make artillery-anilove
+#   make destroy
 
 .PHONY: help \
 	local-up local-down local-ps local-logs local-rebuild \
@@ -13,9 +14,11 @@
 	bench-anilove bench-csv bench-thumbnail \
 	bench-down-anilove bench-down-csv bench-down-thumbnail \
 	artillery-anilove artillery-csv artillery-thumbnail \
-	artillery-install
+	artillery-install \
+	init plan apply destroy output
 
 ROOT := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+TF_DIR := $(ROOT)terraform
 
 help:
 	@echo ""
@@ -36,6 +39,14 @@ help:
 	@echo ""
 	@echo "Parallel Artillery (EC2+ECS+Lambda per suite)"
 	@echo "  make artillery-anilove|csv|thumbnail"
+	@echo ""
+	@echo "Terraform main stack (terraform/; remote state kept in bootstrap)"
+	@echo "  make init              terraform init"
+	@echo "  make plan              terraform plan"
+	@echo "  make apply             terraform apply"
+	@echo "  make destroy           destroy ALL main-stack resources (-auto-approve)"
+	@echo "  make output            terraform output"
+	@echo "  (does not destroy S3/DynamoDB state backend under terraform/bootstrap)"
 	@echo ""
 
 local-up:
@@ -95,3 +106,20 @@ artillery-csv:
 
 artillery-thumbnail:
 	bash $(ROOT)benchmarks/scripts/run-parallel.sh thumbnail-generator
+
+# Terraform main stack only (keeps remote state backend)
+
+init:
+	cd $(TF_DIR) && terraform init
+
+plan:
+	cd $(TF_DIR) && terraform plan
+
+apply:
+	cd $(TF_DIR) && terraform apply
+
+destroy:
+	cd $(TF_DIR) && terraform destroy -auto-approve
+
+output:
+	cd $(TF_DIR) && terraform output
