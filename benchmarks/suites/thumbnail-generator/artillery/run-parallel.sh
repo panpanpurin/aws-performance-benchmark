@@ -1,3 +1,5 @@
 #!/usr/bin/env bash
 # Thin wrapper -> shared runner
-exec "$(cd "$(dirname "$0")/../../../scripts" && pwd)/run-parallel.sh" thumbnail-generator
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"
+exec bash "$ROOT/benchmarks/scripts/run-parallel.sh" thumbnail-generator

@@ -1,88 +1,59 @@
 # AniLove scrape config.
-# App and node-exporter targets are left empty for later fill (manual or automation).
-# Pushgateway targets use Docker Compose service names.
+# App metrics: scrapes host metrics-proxy ports (node scripts/anilove-metrics-proxy.js).
+# Artillery: pushgateways inside Docker.
 
 global:
   scrape_interval: 5s
 
 scrape_configs:
 
-  # ---- EC2 ----
-
-  - job_name: 'instrumented-metrics-ec2'
-    scheme: https
+  - job_name: instrumented-metrics-ec2
     metrics_path: /metrics
     static_configs:
-      - targets: []
-        # e.g. ['anilove-ec2.example.com']
+      - targets: ["host.docker.internal:18080"]
         labels:
           service: app-instrumented-ec2
           environment: production
           instance: ec2
 
-  - job_name: 'artillery-metrics-ec2'
+  - job_name: artillery-metrics-ec2
     static_configs:
-      - targets: ['pushgateway-ec2:9091']
+      - targets: ["pushgateway-ec2:9091"]
         labels:
           service: artillery-ec2
           environment: production
           instance: ec2
 
-  - job_name: 'node-exporter-ec2'
-    static_configs:
-      - targets: []
-        # e.g. ['x.x.x.x:9100']
-        labels:
-          service: infra-ec2
-          environment: production
-          instance: ec2
-
-  # ---- ECS ----
-
-  - job_name: 'instrumented-metrics-ecs'
-    scheme: https
+  - job_name: instrumented-metrics-ecs
     metrics_path: /metrics
     static_configs:
-      - targets: []
-        # e.g. ['anilove-ecs.example.com']
+      - targets: ["host.docker.internal:18081"]
         labels:
           service: app-instrumented-ecs
           environment: production
           instance: ecs
 
-  - job_name: 'artillery-metrics-ecs'
+  - job_name: artillery-metrics-ecs
     static_configs:
-      - targets: ['pushgateway-ecs:9091']
+      - targets: ["pushgateway-ecs:9091"]
         labels:
           service: artillery-ecs
           environment: production
           instance: ecs
 
-  - job_name: 'node-exporter-ecs'
-    static_configs:
-      - targets: []
-        # e.g. ['x.x.x.x:9100']
-        labels:
-          service: infra-ecs
-          environment: production
-          instance: ecs
-
-  # ---- Lambda ----
-
-  - job_name: 'instrumented-metrics-lambda'
+  - job_name: instrumented-metrics-lambda
     scheme: https
     metrics_path: /metrics
     static_configs:
-      - targets: []
-        # e.g. ['xxxx.lambda-url.region.on.aws']
+      - targets: ["uq62flzlknyaqoxqb5xen2rphu0rimyn.lambda-url.ap-northeast-1.on.aws"]
         labels:
           service: app-instrumented-lambda
           environment: production
           instance: lambda
 
-  - job_name: 'artillery-metrics-lambda'
+  - job_name: artillery-metrics-lambda
     static_configs:
-      - targets: ['pushgateway-lambda:9091']
+      - targets: ["pushgateway-lambda:9091"]
         labels:
           service: artillery-lambda
           environment: production

@@ -1,6 +1,6 @@
-# Set target to the EC2 base URL before running (see benchmarks/docs/ARTILLERY-TARGETS.md)
+# ALB + Host header (synced from terraform outputs)
 config:
-  target: "https://REPLACE_ME"
+  target: "http://aws-perf-bench-apps-1451786047.ap-northeast-1.elb.amazonaws.com"
   processor: "./processor.js"
 
   # ============================================================
@@ -48,6 +48,8 @@ config:
       arrivalRate: 18
 
   defaults:
+    headers:
+      Host: csv-processor-ec2.bench.local
     http:
       timeout: 60
 

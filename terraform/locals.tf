@@ -10,6 +10,10 @@ locals {
     var.tags_extra
   )
 
+  # Host headers for ALB rules. Always set so target groups attach to the listener
+  # even without a public domain (use Host header against the ALB DNS name).
+  dns_suffix = var.domain_name != "" ? var.domain_name : "bench.local"
+
   apps = {
     anilove = {
       name             = "anilove"
@@ -20,8 +24,8 @@ locals {
       db_schema_ec2    = "ec2"
       db_schema_ecs    = "ecs"
       db_schema_lambda = "lambda"
-      host_ec2         = var.domain_name != "" ? "anilove-ec2.${var.domain_name}" : ""
-      host_ecs         = var.domain_name != "" ? "anilove-ecs.${var.domain_name}" : ""
+      host_ec2         = "anilove-ec2.${local.dns_suffix}"
+      host_ecs         = "anilove-ecs.${local.dns_suffix}"
     }
     csv = {
       name        = "csv-processor"
@@ -29,8 +33,8 @@ locals {
       needs_rds   = false
       ecr_name    = "${var.project_name}/csv-processor"
       health_path = "/health"
-      host_ec2    = var.domain_name != "" ? "csv-processor-ec2.${var.domain_name}" : ""
-      host_ecs    = var.domain_name != "" ? "csv-processor-ecs.${var.domain_name}" : ""
+      host_ec2    = "csv-processor-ec2.${local.dns_suffix}"
+      host_ecs    = "csv-processor-ecs.${local.dns_suffix}"
     }
     thumbnail = {
       name        = "thumbnail-generator"
@@ -38,8 +42,8 @@ locals {
       needs_rds   = false
       ecr_name    = "${var.project_name}/thumbnail-generator"
       health_path = "/health"
-      host_ec2    = var.domain_name != "" ? "thumbnail-generator-ec2.${var.domain_name}" : ""
-      host_ecs    = var.domain_name != "" ? "thumbnail-ecs.${var.domain_name}" : ""
+      host_ec2    = "thumbnail-generator-ec2.${local.dns_suffix}"
+      host_ecs    = "thumbnail-ecs.${local.dns_suffix}"
     }
   }
 

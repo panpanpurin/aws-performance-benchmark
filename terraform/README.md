@@ -85,13 +85,13 @@ Without domain settings the ALB is HTTP only.
 | EC2 / ECS | `apps/*/Dockerfile` | `latest` |
 | Lambda | `apps/*/Dockerfile.lambda` | `lambda` |
 
-From repo root (Docker + AWS CLI):
+From repo root (Docker + AWS CLI; on Windows use Git Bash / WSL):
 
 ```bash
 make push-images
-# Windows: .\scripts\push-ecr.ps1
-# Unix:    ./scripts/push-ecr.sh
+# or: ./scripts/push-ecr.sh
 ```
+
 
 Pin digests in `tfvars` after the first push. Details: [docs/DEPLOY.md](../docs/DEPLOY.md).
 

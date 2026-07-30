@@ -197,6 +197,9 @@ module "ecs_cluster" {
   jwt_secret_arn        = module.secrets.jwt_secret_arn
   aws_region            = var.aws_region
   tags                  = local.tags
+
+  # Listener rules must exist so ECS target groups are associated with the ALB
+  depends_on = [module.alb]
 }
 
 module "lambda_apps" {

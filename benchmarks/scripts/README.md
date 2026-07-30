@@ -1,20 +1,12 @@
-# Shared benchmark scripts
+# Benchmark scripts
 
 | Script | Purpose |
 |--------|---------|
-| `run-parallel.sh` | Bash: EC2 + ECS + Lambda Artillery for one suite |
-| `run-parallel.ps1` | PowerShell: same |
+| `run-parallel.sh` | Parallel Artillery (EC2 + ECS + Lambda) for one suite |
 
 ```bash
 ./run-parallel.sh anilove
-./run-parallel.sh csv-processor
-./run-parallel.sh thumbnail-generator
+make artillery-anilove
 ```
 
-```powershell
-.\run-parallel.ps1 -Suite anilove
-```
-
-Or from repo root: `make artillery-anilove` (and csv / thumbnail).
-
-Thin wrappers under each suite `artillery/` call these scripts.
+Repo-wide automation: [scripts/README.md](../../scripts/README.md).

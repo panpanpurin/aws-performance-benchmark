@@ -62,3 +62,23 @@ resource "aws_lambda_function_url" "app" {
     max_age           = 86400
   }
 }
+
+# Public Function URL (auth NONE) needs both invoke URL + invoke function
+resource "aws_lambda_permission" "function_url_public" {
+  for_each = var.function_url_auth_type == "NONE" ? aws_lambda_function.app : {}
+
+  statement_id           = "AllowPublicFunctionUrl"
+  action                 = "lambda:InvokeFunctionUrl"
+  function_name          = each.value.function_name
+  principal              = "*"
+  function_url_auth_type = "NONE"
+}
+
+resource "aws_lambda_permission" "function_invoke_public" {
+  for_each = var.function_url_auth_type == "NONE" ? aws_lambda_function.app : {}
+
+  statement_id  = "AllowPublicInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = each.value.function_name
+  principal     = "*"
+}

@@ -15,6 +15,9 @@ services:
   grafana:
     ports:
       - "3202:3000"
+    volumes:
+      - ../../stack/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboard.json:/var/lib/grafana/dashboards/dashboard.json:ro
 
   pushgateway-ecs:
     ports:

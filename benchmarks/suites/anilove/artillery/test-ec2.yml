@@ -1,6 +1,6 @@
-# Set target to the EC2 base URL before running (see benchmarks/docs/ARTILLERY-TARGETS.md)
+# ALB + Host header (synced from terraform outputs)
 config:
-  target: "https://REPLACE_ME"
+  target: "http://aws-perf-bench-apps-1451786047.ap-northeast-1.elb.amazonaws.com"
   phases:
     # Phase 1 - Warm-up:
     # Gradually warms the environments without pressure.
@@ -33,6 +33,7 @@ config:
   defaults:
     headers:
       Content-Type: application/json
+      Host: anilove-ec2.bench.local
     http:
       timeout: 60
 

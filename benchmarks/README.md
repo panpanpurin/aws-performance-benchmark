@@ -5,7 +5,7 @@ AWS observability and Artillery load tests per workload.
 ```text
 benchmarks/
 ├── docs/                 # ports, Prometheus and Artillery targets
-├── scripts/              # shared run-parallel.sh / .ps1
+├── scripts/              # shared run-parallel.sh
 ├── stack/                # shared Prometheus + Grafana + pushgateways
 └── suites/
     ├── anilove/

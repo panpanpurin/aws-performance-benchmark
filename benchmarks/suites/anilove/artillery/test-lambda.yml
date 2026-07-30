@@ -1,6 +1,6 @@
-# Set target to the Lambda Function URL before running (see benchmarks/docs/ARTILLERY-TARGETS.md)
+# Lambda Function URL (synced from terraform outputs)
 config:
-  target: "https://REPLACE_ME"
+  target: "https://uq62flzlknyaqoxqb5xen2rphu0rimyn.lambda-url.ap-northeast-1.on.aws"
   phases:
     # Phase 1 - Warm-up:
     # Gradually warms the environments without pressure.

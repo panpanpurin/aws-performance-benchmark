@@ -1,6 +1,6 @@
-# Set target to the Lambda Function URL before running (see benchmarks/docs/ARTILLERY-TARGETS.md)
+# Lambda Function URL (synced from terraform outputs)
 config:
-  target: "https://REPLACE_ME"
+  target: "https://7an5wy4szfhymn4ahxiv76b4t40vcpfs.lambda-url.ap-northeast-1.on.aws"
   processor: "./processor.js"
 
   # ============================================================

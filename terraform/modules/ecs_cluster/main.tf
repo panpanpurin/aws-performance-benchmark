@@ -137,7 +137,8 @@ resource "aws_autoscaling_group" "ecs" {
 }
 
 resource "aws_ecs_capacity_provider" "ec2" {
-  name = "${var.name}-ec2"
+  # ECS rejects names prefixed with "aws", "ecs", or "fargate"
+  name = "${replace(var.name, "aws-", "")}-ec2-cp"
 
   auto_scaling_group_provider {
     auto_scaling_group_arn         = aws_autoscaling_group.ecs.arn

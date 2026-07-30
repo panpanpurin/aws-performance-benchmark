@@ -1,4 +1,6 @@
 # AniLove suite: ports 9090 / 3002 / 9092-9094
+# App metric scrapes go through host.docker.internal:18080/18081
+# (run: node scripts/anilove-metrics-proxy.js for EC2/ECS Host headers).
 name: anilove-benchmark
 
 include:
@@ -15,6 +17,9 @@ services:
   grafana:
     ports:
       - "3002:3000"
+    volumes:
+      - ../../stack/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboard.json:/var/lib/grafana/dashboards/dashboard.json:ro
 
   pushgateway-ecs:
     ports:

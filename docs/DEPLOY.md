@@ -122,24 +122,20 @@ docker build -t thumbnail-generator:lambda  -f apps/thumbnail-generator/Dockerfi
 
 After core `terraform apply` (ECR repos exist), from the **repo root**:
 
-```powershell
-# Windows PowerShell (Docker Desktop running, AWS CLI configured)
+```bash
+# Docker Desktop running, AWS CLI configured (Git Bash / WSL on Windows)
 make push-images
-# or one app: make push-anilove | make push-csv | make push-thumbnail
-# or: .\scripts\push-ecr.ps1 -App all
+# or: ./scripts/push-ecr.sh [all|anilove|csv|thumbnail]
 ```
+
+After images are in ECR and compute is applied, refresh Artillery + scrape configs from Terraform outputs:
 
 ```bash
-# Git Bash / Linux / macOS
-./scripts/push-ecr.sh
-# or: ./scripts/push-ecr.sh anilove
+make sync-targets
+make health
 ```
 
-The script logs in to ECR, builds `Dockerfile` → `:latest` and `Dockerfile.lambda` → `:lambda`, and pushes all three apps (account id from `aws sts get-caller-identity`, region default `ap-northeast-1`).
-
-Default tags in Terraform: `ecr_image_tag=latest` (EC2/ECS), `ecr_lambda_image_tag=lambda`. Prefer digests in `tfvars` after the first push.
-
-Then set `enable_ec2` / `enable_ecs` / `enable_lambda` and re apply. See [terraform/README.md](../terraform/README.md).
+See [scripts/README.md](../scripts/README.md).
 
 ### Smoke run locally
 

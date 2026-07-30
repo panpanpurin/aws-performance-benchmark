@@ -107,7 +107,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bf10jrubrpf5sf"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "1000 *\r\n(\r\n  sum by (service) (\r\n    rate(app_total_execution_time_seconds_sum[5m])\r\n  )\r\n/\r\n  clamp_min(\r\n    sum by (service) (\r\n      rate(app_total_execution_time_seconds_count[5m])\r\n    ),\r\n    1\r\n  )\r\n)",
@@ -207,7 +207,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bf10jrubrpf5sf"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "1000 *\r\n(\r\n  sum by (service) (\r\n    rate(app_internal_processing_time_seconds_sum[5m])\r\n  )\r\n/\r\n  clamp_min(\r\n    sum by (service) (\r\n      rate(app_internal_processing_time_seconds_count[5m])\r\n    ),\r\n    1\r\n  )\r\n)",
@@ -224,7 +224,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "df441znulhu68a"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -307,7 +307,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "ff1bq1sli72tcc"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "1000 * histogram_quantile(\r\n  0.95,\r\n  sum by (service, le) (\r\n    rate(app_total_execution_time_seconds_bucket[5m])\r\n  )\r\n)",
@@ -407,7 +407,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bf10jrubrpf5sf"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "1000 * histogram_quantile(\r\n  0.95,\r\n  sum by (service, le) (\r\n    rate(app_internal_processing_time_seconds_bucket[5m])\r\n  )\r\n)",
@@ -507,7 +507,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bf10jrubrpf5sf"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "1000 * histogram_quantile(\r\n  0.99,\r\n  sum by (service, le) (\r\n    rate(app_total_execution_time_seconds_bucket[5m])\r\n  )\r\n)",
@@ -607,7 +607,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bf10jrubrpf5sf"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "1000 * histogram_quantile(\r\n  0.99,\r\n  sum by (service, le) (\r\n    rate(app_internal_processing_time_seconds_bucket[5m])\r\n  )\r\n)",
@@ -707,7 +707,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bf10jrubrpf5sf"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "avg by (service) (\r\n  avg_over_time(app_cpu_usage_percent[5m])\r\n)",
@@ -724,7 +724,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "df441znulhu68a"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -807,7 +807,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "af33v9yxbuzuof"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "avg by (service) (\r\n  avg_over_time(app_ram_usage_mb[5m])\r\n)",
@@ -824,7 +824,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "df441znulhu68a"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -907,7 +907,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "af33v9yxbuzuof"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "max by (service) (\r\n  max_over_time(app_cpu_peak_percent[5m])\r\n)",
@@ -924,7 +924,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "df441znulhu68a"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -1007,7 +1007,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "af33v9yxbuzuof"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "max by (service) (\r\n  max_over_time(app_ram_peak_mb[5m])\r\n)",
@@ -1212,7 +1212,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "df441znulhu68a"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -1306,7 +1306,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "df441znulhu68a"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -2151,7 +2151,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "df441znulhu68a"
+        "uid": "prometheus"
       },
       "description": "",
       "fieldConfig": {

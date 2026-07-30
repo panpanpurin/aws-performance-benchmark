@@ -120,3 +120,8 @@ temp/
 !**/pokes.csv
 !**/data.csv
 !**/fixtures/**
+
+# Local AWS CLI / debug leftovers (e.g. aws lambda invoke --outfile)
+/out-*.json
+/tmp-payload.json
+/tmp-*.json

@@ -1,6 +1,6 @@
-# Set target to the ECS base URL before running (see benchmarks/docs/ARTILLERY-TARGETS.md)
+# ALB + Host header (synced from terraform outputs)
 config:
-  target: "https://REPLACE_ME"
+  target: "http://aws-perf-bench-apps-1451786047.ap-northeast-1.elb.amazonaws.com"
   processor: "./upload-image.js"
   phases:
     # Phase 1 - Warm-up
@@ -29,8 +29,10 @@ config:
       arrivalRate: 6  # 6 requests per second (light, sustained load)
 
   defaults:
+    headers:
+      Host: thumbnail-ecs.bench.local
     http:
-      timeout: 60         
+      timeout: 60
 
   plugins:
     publish-metrics:

@@ -1,12 +1,15 @@
-# Run from repo root. Relative paths avoid Windows/Make bugs with special chars in the absolute path.
+# Run from repo root. Scripts are bash (.sh) + Node.
+# On Windows: Git Bash, WSL, or bash on PATH.
 #
 #   make help
-#   make plan
+#   make check
 #   make apply
-#   make destroy
 #   make push-images
+#   make sync-targets
+#   make health
+#   make artillery-anilove
 
-.PHONY: help \
+.PHONY: help check \
 	local-up local-down local-ps local-logs local-rebuild \
 	local-test local-test-anilove local-test-csv local-test-thumbnail \
 	bench-anilove bench-csv bench-thumbnail \
@@ -14,40 +17,43 @@
 	artillery-anilove artillery-csv artillery-thumbnail \
 	artillery-install \
 	init plan apply destroy output \
-	push-images push-anilove push-csv push-thumbnail
+	push-images push-anilove push-csv push-thumbnail \
+	metrics-proxy sync-targets health \
+	ecs-up ecs-down ecs-status
 
 help:
 	@echo ""
-	@echo "Local stack (apps + metrics)"
-	@echo "  make local-up          docker compose up -d --build"
-	@echo "  make local-down        docker compose down"
-	@echo "  make local-ps          docker compose ps"
-	@echo "  make local-logs        follow compose logs"
-	@echo "  make local-rebuild     down -v + up --build"
-	@echo "  make local-test        Artillery against localhost (all 3 apps)"
-	@echo "  make local-test-anilove|csv|thumbnail"
+	@echo "Prereqs / health"
+	@echo "  make check             tools + aws credentials"
+	@echo "  make health            ALB + Lambda /health"
+	@echo "  make sync-targets      Artillery YAML from terraform outputs"
 	@echo ""
-	@echo "AWS metrics stacks (parallel ports; see benchmarks/docs/PORTS.md)"
-	@echo "  make bench-anilove     :9090 / Grafana :3002 / PG 9092-9094"
-	@echo "  make bench-csv         :9190 / Grafana :3102 / PG 9192-9194"
-	@echo "  make bench-thumbnail   :9290 / Grafana :3202 / PG 9292-9294"
-	@echo "  make bench-down-anilove|csv|thumbnail"
+	@echo "Local stack"
+	@echo "  make local-up|local-down|local-test|..."
 	@echo ""
-	@echo "Parallel Artillery (EC2+ECS+Lambda per suite)"
+	@echo "AWS metrics (Docker)"
+	@echo "  make bench-anilove|bench-csv|bench-thumbnail"
+	@echo "  make metrics-proxy     AniLove EC2/ECS scrape proxy (Node)"
+	@echo ""
+	@echo "Load tests"
 	@echo "  make artillery-anilove|csv|thumbnail"
 	@echo ""
-	@echo "Terraform main stack (terraform/; remote state kept in bootstrap)"
-	@echo "  make init              terraform init"
-	@echo "  make plan              terraform plan"
-	@echo "  make apply             terraform apply"
-	@echo "  make destroy           destroy ALL main-stack resources (-auto-approve)"
-	@echo "  make output            terraform output"
-	@echo "  (does not destroy S3/DynamoDB state backend under terraform/bootstrap)"
+	@echo "Terraform"
+	@echo "  make init|plan|apply|destroy|output"
 	@echo ""
-	@echo "ECR images (needs Docker + AWS CLI; region ap-northeast-1)"
-	@echo "  make push-images       build+push all apps (latest + lambda)"
-	@echo "  make push-anilove|push-csv|push-thumbnail"
+	@echo "Images / ECS capacity"
+	@echo "  make push-images|push-anilove|push-csv|push-thumbnail"
+	@echo "  make ecs-up|ecs-down|ecs-status"
 	@echo ""
+
+check:
+	bash scripts/check-prereqs.sh
+
+health:
+	bash scripts/health-check.sh
+
+sync-targets:
+	bash scripts/sync-artillery-targets.sh
 
 local-up:
 	docker compose -f docker-compose.yml up -d --build
@@ -82,6 +88,7 @@ local-test-thumbnail: artillery-install
 
 bench-anilove:
 	cd benchmarks/suites/anilove && docker compose up -d
+	@echo "Also run: make metrics-proxy"
 
 bench-csv:
 	cd benchmarks/suites/csv-processor && docker compose up -d
@@ -98,6 +105,9 @@ bench-down-csv:
 bench-down-thumbnail:
 	cd benchmarks/suites/thumbnail-generator && docker compose down
 
+metrics-proxy:
+	node scripts/anilove-metrics-proxy.js
+
 artillery-anilove:
 	bash benchmarks/scripts/run-parallel.sh anilove
 
@@ -106,8 +116,6 @@ artillery-csv:
 
 artillery-thumbnail:
 	bash benchmarks/scripts/run-parallel.sh thumbnail-generator
-
-# Terraform main stack only (keeps remote state backend)
 
 init:
 	cd terraform && terraform init
@@ -124,16 +132,23 @@ destroy:
 output:
 	cd terraform && terraform output
 
-# ECR: build and push (PowerShell on Windows; use scripts/push-ecr.sh on Git Bash/Linux)
-
 push-images:
-	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/push-ecr.ps1 -App all
+	bash scripts/push-ecr.sh all
 
 push-anilove:
-	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/push-ecr.ps1 -App anilove
+	bash scripts/push-ecr.sh anilove
 
 push-csv:
-	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/push-ecr.ps1 -App csv
+	bash scripts/push-ecr.sh csv
 
 push-thumbnail:
-	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/push-ecr.ps1 -App thumbnail
+	bash scripts/push-ecr.sh thumbnail
+
+ecs-up:
+	bash scripts/ecs-scale.sh up
+
+ecs-down:
+	bash scripts/ecs-scale.sh down
+
+ecs-status:
+	bash scripts/ecs-scale.sh status

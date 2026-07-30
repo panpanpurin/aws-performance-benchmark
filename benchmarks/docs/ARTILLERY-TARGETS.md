@@ -24,9 +24,11 @@ After `terraform apply` (with DNS and/or compute enabled):
 
 | Suite file | Typical target |
 |------------|----------------|
-| `test-ec2.yml` | `https://anilove-ec2.<domain>` (or app equivalent) |
-| `test-ecs.yml` | `https://anilove-ecs.<domain>` |
+| `test-ec2.yml` | With domain: `https://anilove-ec2.<domain>`. Without domain: `http://<alb_dns_name>` and set header `Host: anilove-ec2.bench.local` |
+| `test-ecs.yml` | Same pattern with `anilove-ecs.bench.local` (or your domain host) |
 | `test-lambda.yml` | Function URL from output (includes `https://`) |
+
+Without Route 53, Terraform still creates ALB host rules for `*.bench.local` so target groups stay attached. Use the ALB DNS from `terraform output alb_dns_name` plus the Host header.
 
 Same pattern for CSV and Thumbnail suite files.
 

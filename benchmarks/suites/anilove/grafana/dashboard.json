@@ -24,7 +24,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "af2phqbtqb8xse"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -105,7 +105,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "round(\r\n  max by (instance) (\r\n    max_over_time(anilove_app_memory_rss_bytes[15m])\r\n  ) / 1024^2,\r\n  0.01\r\n)",
+          "expr": "round(\r\n  max by (instance) (\r\n    max_over_time(app_ram_usage_mb[5m])\r\n  ),\r\n  0.01\r\n)",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -210,7 +210,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "af2phqbtqb8xse"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -291,7 +291,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "round(\r\n  clamp_max(\r\n    max by (instance) (\r\n      max_over_time(anilove_app_cpu_percent[15m])\r\n    ),\r\n    100\r\n  ),\r\n  0.01\r\n)\r\n",
+          "expr": "round(\r\n  clamp_max(\r\n    max by (instance) (\r\n      max_over_time(app_cpu_usage_percent[5m])\r\n    ),\r\n    100\r\n  ),\r\n  0.01\r\n)\r\n",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -396,7 +396,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "af2phqbtqb8xse"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -477,7 +477,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "histogram_quantile(\r\n  0.95,\r\n  sum by (le, instance) (\r\n    rate(anilove_http_request_duration_seconds_bucket[15m])\r\n  )\r\n) * 1000\r\n\r\n\r\n\r\n\r\n  ",
+          "expr": "histogram_quantile(\r\n  0.95,\r\n  sum by (le, instance) (\r\n    rate(app_total_execution_time_seconds_bucket[5m])\r\n  )\r\n) * 1000\r\n\r\n\r\n\r\n\r\n  ",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -570,7 +570,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "histogram_quantile(\r\n  0.95,\r\n  sum by (le, instance) (\r\n    rate(anilove_internal_processing_duration_seconds_bucket[15m])\r\n  )\r\n) * 1000\r\n",
+          "expr": "histogram_quantile(\r\n  0.95,\r\n  sum by (le, instance) (\r\n    rate(app_internal_processing_time_seconds_bucket[5m])\r\n  )\r\n) * 1000\r\n",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -663,7 +663,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "1000 *\r\nsum by (le, instance) (\r\n  rate(anilove_http_request_duration_seconds_sum[15m])\r\n)\r\n/\r\nclamp_min(\r\n  sum by (le, instance) (\r\n    rate(anilove_http_request_duration_seconds_count[15m])\r\n  ),\r\n  1e-9\r\n)",
+          "expr": "1000 *\r\nsum by (instance) (rate(app_total_execution_time_seconds_sum[5m]))\r\n/\r\nclamp_min(\r\n  sum by (instance) (rate(app_total_execution_time_seconds_count[5m])),\r\n  1e-9\r\n)",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -849,7 +849,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "histogram_quantile(\r\n  0.99,\r\n  sum by (le, instance) (\r\n    rate(anilove_http_request_duration_seconds_bucket[15m])\r\n  )\r\n) * 1000\r\n\r\n",
+          "expr": "histogram_quantile(\r\n  0.99,\r\n  sum by (le, instance) (\r\n    rate(app_total_execution_time_seconds_bucket[5m])\r\n  )\r\n) * 1000\r\n\r\n",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -942,7 +942,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "avg by (instance) (\r\n  avg_over_time(anilove_app_cpu_percent[15m])\r\n)\r\n\r\n\r\n",
+          "expr": "avg by (instance) (\r\n  avg_over_time(app_cpu_usage_percent[5m])\r\n)\r\n\r\n\r\n",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -1128,7 +1128,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "round(\r\n  avg by (instance) (\r\n    avg_over_time(anilove_app_memory_rss_bytes[15m])\r\n  ) / 1024^2,\r\n  0.01\r\n)",
+          "expr": "round(\r\n  avg by (instance) (\r\n    avg_over_time(app_ram_usage_mb[5m])\r\n  ),\r\n  0.01\r\n)",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -1221,7 +1221,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "0.00001 *\r\nsum by (le, instance) (\r\n  rate(anilove_internal_processing_duration_seconds_sum[15m])\r\n)\r\n/\r\nclamp_min(\r\n  sum by (instance) (\r\n    rate(anilove_internal_processing_duration_seconds_count[5m])\r\n  ),\r\n  1e-9\r\n)\r\n",
+          "expr": "1000 *\r\nsum by (instance) (\r\n  rate(app_internal_processing_time_seconds_sum[5m])\r\n)\r\n/\r\nclamp_min(\r\n  sum by (instance) (\r\n    rate(app_internal_processing_time_seconds_count[5m])\r\n  ),\r\n  1e-9\r\n)\r\n",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -1407,7 +1407,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "histogram_quantile(\r\n  0.99,\r\n  sum by (le, instance) (\r\n    rate(anilove_internal_processing_duration_seconds_bucket[15m])\r\n  )\r\n) * 1000\r\n\r\n",
+          "expr": "histogram_quantile(\r\n  0.99,\r\n  sum by (le, instance) (\r\n    rate(app_internal_processing_time_seconds_bucket[5m])\r\n  )\r\n) * 1000\r\n\r\n",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -1592,7 +1592,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "1000 *\r\nsum by (instance) (rate(node_cpu_seconds_total{mode!=\"idle\"}[15m])) \r\n/\r\nsum by (instance) (rate(node_cpu_seconds_total[15m]))\r\n\r\n",
+          "expr": "1000 *\r\nsum by (instance) (rate(node_cpu_seconds_total{mode!=\"idle\"}[5m])) \r\n/\r\nsum by (instance) (rate(node_cpu_seconds_total[5m]))\r\n\r\n",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -1883,7 +1883,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "af2phqbtqb8xse"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -1989,7 +1989,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "label_replace(\r\n  (\r\n    sum(anilove_lambda_cold_start_duration_seconds_sum{job=\"instrumented-metrics-lambda\"})\r\n  /\r\n    sum(anilove_lambda_cold_start_duration_seconds_count{job=\"instrumented-metrics-lambda\"})\r\n  ),\r\n  \"service\", \"Lambda Cold Start Avg\", \"job\", \".*\"\r\n)\r\n\r\n\r\n\r\n\r\n",
+          "expr": "label_replace(\r\n  (\r\n    1000 * sum(app_cold_start_duration_seconds_sum{job=\"instrumented-metrics-lambda\"}) / clamp_min(sum(app_cold_start_duration_seconds_count{job=\"instrumented-metrics-lambda\"}), 1)\r\n  ),\r\n  \"service\", \"Lambda Cold Start Avg\", \"job\", \".*\"\r\n)\r\n\r\n\r\n\r\n\r\n",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -1997,10 +1997,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bf10jrubrpf5sf"
+            "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "label_replace(\r\n  sum(increase(anilove_lambda_cold_start_duration_seconds_sum[6h]))\r\n  /\r\n  clamp_min(sum(increase(anilove_lambda_cold_start_duration_seconds_count[6h])), 1),\r\n  \"service\", \"Lambda Cold Start Avg (ms)\", \"service\", \".*\"\r\n)\r\n\r\n\r\n",
+          "expr": "label_replace(\r\n  sum(increase(app_cold_start_duration_seconds_sum[6h]))\r\n  /\r\n  clamp_min(sum(increase(app_cold_start_duration_seconds_count[6h])), 1),\r\n  \"service\", \"Lambda Cold Start Avg (ms)\", \"service\", \".*\"\r\n)\r\n\r\n\r\n",
           "hide": false,
           "instant": false,
           "legendFormat": "__auto",
@@ -2010,10 +2010,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "bf10jrubrpf5sf"
+            "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "label_replace(\r\n  histogram_quantile(\r\n    0.99,\r\n    sum(anilove_lambda_cold_start_duration_seconds_bucket) by (le)\r\n  ) * 1000 ,\r\n  \"service\", \"Lambda Cold Start (p99)\", \"service\", \".*\"\r\n)\r\n\r\n",
+          "expr": "label_replace(\r\n  histogram_quantile(\r\n    0.99,\r\n    sum(app_cold_start_duration_seconds_bucket) by (le)\r\n  ) * 1000 ,\r\n  \"service\", \"Lambda Cold Start (p99)\", \"service\", \".*\"\r\n)\r\n\r\n",
           "hide": false,
           "instant": false,
           "legendFormat": "__auto",

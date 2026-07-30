@@ -9,7 +9,7 @@ benchmarks/suites/anilove/
 ├── grafana/dashboard.json
 └── artillery/
     ├── test-ec2.yml | test-ecs.yml | test-lambda.yml
-    └── run-parallel.bat | .ps1 | .sh
+    └── run-parallel.sh (or .bat -> bash)
 ```
 
 ## Metrics stack
@@ -36,9 +36,8 @@ Set `target` in each `test-*.yml` first ([ARTILLERY-TARGETS.md](../../docs/ARTIL
 
 ```bash
 cd artillery
-npx artillery@2.0.23 run test-ec2.yml
-run-parallel.bat
-# or: make artillery-anilove
+./run-parallel.sh
+# or from repo root: make artillery-anilove
 ```
 
 Guide: [PARALLEL-BENCHMARK.md](../../../docs/PARALLEL-BENCHMARK.md).
