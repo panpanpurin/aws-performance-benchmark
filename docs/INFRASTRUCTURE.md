@@ -192,7 +192,7 @@ See [PROMETHEUS-TARGETS.md](../benchmarks/docs/PROMETHEUS-TARGETS.md) and [ARTIL
 |------|----------|
 | Stack | [terraform/](../terraform/) |
 | IAM | [IAM.md](./IAM.md), `modules/iam` |
-| Remote state | `bootstrap/`, backend in `versions.tf` |
+| Remote state | `bootstrap/`, backend in `backend.tf` (gitignored) |
 | Pins | AMI, digests, TLS policy, sizes in `variables.tf` |
 | Compute flags | `enable_ec2` / `enable_ecs` / `enable_lambda` (default off until images exist) |
 

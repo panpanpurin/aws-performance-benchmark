@@ -1,3 +1,11 @@
+# Security groups and their rules.
+#
+# Rules are separate aws_vpc_security_group_{ingress,egress}_rule resources
+# rather than inline blocks, so each rule is tagged and managed individually.
+#
+# Path: internet -> ALB -> EC2/ECS app SGs -> RDS. Lambda reaches RDS through
+# its own SG. No app SG accepts traffic from the internet directly.
+
 resource "aws_security_group" "alb" {
   name        = "${var.name}-alb"
   description = "ALB public HTTPS/HTTP"
@@ -20,6 +28,11 @@ resource "aws_vpc_security_group_ingress_rule" "alb_https" {
   from_port         = 443
   to_port           = 443
   cidr_ipv4         = "0.0.0.0/0"
+
+  tags = merge(var.tags, {
+    Name      = "${var.name}-alb-in-https"
+    Component = "security"
+  })
 }
 
 resource "aws_vpc_security_group_ingress_rule" "alb_http" {
@@ -29,6 +42,11 @@ resource "aws_vpc_security_group_ingress_rule" "alb_http" {
   from_port         = 80
   to_port           = 80
   cidr_ipv4         = "0.0.0.0/0"
+
+  tags = merge(var.tags, {
+    Name      = "${var.name}-alb-in-http"
+    Component = "security"
+  })
 }
 
 resource "aws_vpc_security_group_egress_rule" "alb_all" {
@@ -36,6 +54,11 @@ resource "aws_vpc_security_group_egress_rule" "alb_all" {
   description       = "Egress"
   ip_protocol       = "-1"
   cidr_ipv4         = "0.0.0.0/0"
+
+  tags = merge(var.tags, {
+    Name      = "${var.name}-alb-egress"
+    Component = "security"
+  })
 }
 
 resource "aws_security_group" "ec2" {
@@ -46,6 +69,7 @@ resource "aws_security_group" "ec2" {
   tags = merge(var.tags, {
     Name      = "${var.name}-ec2-apps"
     Component = "security"
+    Platform  = "ec2"
   })
 
   lifecycle {
@@ -62,6 +86,13 @@ resource "aws_vpc_security_group_ingress_rule" "ec2_from_alb" {
   from_port                    = each.value
   to_port                      = each.value
   referenced_security_group_id = aws_security_group.alb.id
+
+  tags = merge(var.tags, {
+    Name      = "${var.name}-ec2-in-${each.key}"
+    Component = "security"
+    Platform  = "ec2"
+    App       = each.key
+  })
 }
 
 resource "aws_vpc_security_group_egress_rule" "ec2_all" {
@@ -69,6 +100,12 @@ resource "aws_vpc_security_group_egress_rule" "ec2_all" {
   description       = "Egress"
   ip_protocol       = "-1"
   cidr_ipv4         = "0.0.0.0/0"
+
+  tags = merge(var.tags, {
+    Name      = "${var.name}-ec2-egress"
+    Component = "security"
+    Platform  = "ec2"
+  })
 }
 
 resource "aws_security_group" "ecs" {
@@ -79,6 +116,7 @@ resource "aws_security_group" "ecs" {
   tags = merge(var.tags, {
     Name      = "${var.name}-ecs-tasks"
     Component = "security"
+    Platform  = "ecs"
   })
 
   lifecycle {
@@ -95,6 +133,13 @@ resource "aws_vpc_security_group_ingress_rule" "ecs_from_alb" {
   from_port                    = each.value
   to_port                      = each.value
   referenced_security_group_id = aws_security_group.alb.id
+
+  tags = merge(var.tags, {
+    Name      = "${var.name}-ecs-in-${each.key}"
+    Component = "security"
+    Platform  = "ecs"
+    App       = each.key
+  })
 }
 
 resource "aws_vpc_security_group_egress_rule" "ecs_all" {
@@ -102,6 +147,12 @@ resource "aws_vpc_security_group_egress_rule" "ecs_all" {
   description       = "Egress"
   ip_protocol       = "-1"
   cidr_ipv4         = "0.0.0.0/0"
+
+  tags = merge(var.tags, {
+    Name      = "${var.name}-ecs-egress"
+    Component = "security"
+    Platform  = "ecs"
+  })
 }
 
 resource "aws_security_group" "lambda" {
@@ -112,6 +163,7 @@ resource "aws_security_group" "lambda" {
   tags = merge(var.tags, {
     Name      = "${var.name}-lambda"
     Component = "security"
+    Platform  = "lambda"
   })
 
   lifecycle {
@@ -124,6 +176,12 @@ resource "aws_vpc_security_group_egress_rule" "lambda_all" {
   description       = "Egress"
   ip_protocol       = "-1"
   cidr_ipv4         = "0.0.0.0/0"
+
+  tags = merge(var.tags, {
+    Name      = "${var.name}-lambda-egress"
+    Component = "security"
+    Platform  = "lambda"
+  })
 }
 
 resource "aws_security_group" "rds" {
@@ -141,6 +199,8 @@ resource "aws_security_group" "rds" {
   }
 }
 
+# One rule per platform: AniLove runs on all three and shares this instance,
+# isolated by DB_SCHEMA rather than by network.
 resource "aws_vpc_security_group_ingress_rule" "rds_from_ec2" {
   security_group_id            = aws_security_group.rds.id
   description                  = "Postgres from EC2"
@@ -148,6 +208,11 @@ resource "aws_vpc_security_group_ingress_rule" "rds_from_ec2" {
   from_port                    = 5432
   to_port                      = 5432
   referenced_security_group_id = aws_security_group.ec2.id
+
+  tags = merge(var.tags, {
+    Name      = "${var.name}-rds-in-ec2"
+    Component = "security"
+  })
 }
 
 resource "aws_vpc_security_group_ingress_rule" "rds_from_ecs" {
@@ -157,6 +222,11 @@ resource "aws_vpc_security_group_ingress_rule" "rds_from_ecs" {
   from_port                    = 5432
   to_port                      = 5432
   referenced_security_group_id = aws_security_group.ecs.id
+
+  tags = merge(var.tags, {
+    Name      = "${var.name}-rds-in-ecs"
+    Component = "security"
+  })
 }
 
 resource "aws_vpc_security_group_ingress_rule" "rds_from_lambda" {
@@ -166,6 +236,11 @@ resource "aws_vpc_security_group_ingress_rule" "rds_from_lambda" {
   from_port                    = 5432
   to_port                      = 5432
   referenced_security_group_id = aws_security_group.lambda.id
+
+  tags = merge(var.tags, {
+    Name      = "${var.name}-rds-in-lambda"
+    Component = "security"
+  })
 }
 
 resource "aws_vpc_security_group_egress_rule" "rds_all" {
@@ -173,6 +248,11 @@ resource "aws_vpc_security_group_egress_rule" "rds_all" {
   description       = "Egress"
   ip_protocol       = "-1"
   cidr_ipv4         = "0.0.0.0/0"
+
+  tags = merge(var.tags, {
+    Name      = "${var.name}-rds-egress"
+    Component = "security"
+  })
 }
 
 resource "aws_security_group" "ecs_instances" {
@@ -183,6 +263,7 @@ resource "aws_security_group" "ecs_instances" {
   tags = merge(var.tags, {
     Name      = "${var.name}-ecs-instances"
     Component = "security"
+    Platform  = "ecs"
   })
 
   lifecycle {
@@ -195,4 +276,10 @@ resource "aws_vpc_security_group_egress_rule" "ecs_instances_all" {
   description       = "Egress"
   ip_protocol       = "-1"
   cidr_ipv4         = "0.0.0.0/0"
+
+  tags = merge(var.tags, {
+    Name      = "${var.name}-ecs-instances-egress"
+    Component = "security"
+    Platform  = "ecs"
+  })
 }

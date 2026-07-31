@@ -1,11 +1,21 @@
 locals {
   name_prefix = var.project_name
 
+  # Applied to every taggable resource through provider default_tags and passed
+  # into each module as var.tags.
+  #
+  # Platform and App are the cost-allocation dimensions: activate both in
+  # Billing > Cost allocation tags to break the bill down per compute model.
+  # "shared" marks resources the three platforms use in common (VPC, ALB, RDS,
+  # ECR), whose cost cannot be attributed to a single platform. Resources
+  # belonging to one platform override Platform with ec2, ecs, or lambda.
   tags = merge(
     {
       Project     = var.project_name
       ManagedBy   = "terraform"
       Environment = "benchmark"
+      Platform    = "shared"
+      App         = "shared"
     },
     var.tags_extra
   )

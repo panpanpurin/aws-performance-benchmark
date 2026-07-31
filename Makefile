@@ -10,6 +10,7 @@
 #   make artillery-anilove
 
 .PHONY: help check \
+	validate validate-tf validate-bench validate-fairness validate-aws \
 	local-up local-down local-ps local-logs local-rebuild \
 	local-test local-test-anilove local-test-csv local-test-thumbnail \
 	bench-anilove bench-csv bench-thumbnail \
@@ -25,6 +26,11 @@ help:
 	@echo ""
 	@echo "Prereqs / health"
 	@echo "  make check             tools + aws credentials"
+	@echo "  make validate          validate-tf + validate-bench (local, pre-apply)"
+	@echo "  make validate-tf       terraform fmt/validate, backend, tfvars, ECR images"
+	@echo "  make validate-bench    artillery + prometheus + compose config"
+	@echo "  make validate-aws      post-apply: targets healthy, services, RDS, Lambda"
+	@echo "  make validate-fairness only-compute-varies: metrics, pins, deployed specs"
 	@echo "  make health            ALB + Lambda /health"
 	@echo "  make sync-targets      Artillery YAML from terraform outputs"
 	@echo ""
@@ -48,6 +54,20 @@ help:
 
 check:
 	bash scripts/check-prereqs.sh
+
+validate: validate-tf validate-bench
+
+validate-tf:
+	bash scripts/validate-terraform.sh
+
+validate-bench:
+	bash scripts/validate-benchmark-config.sh
+
+validate-aws:
+	bash scripts/validate-aws-state.sh
+
+validate-fairness:
+	bash scripts/validate-fairness.sh
 
 health:
 	bash scripts/health-check.sh

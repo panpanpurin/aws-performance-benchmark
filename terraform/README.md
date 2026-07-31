@@ -57,11 +57,19 @@ terraform init
 terraform apply -var="state_bucket_name=YOUR_UNIQUE_BUCKET"
 ```
 
-Copy `backend_config` into `../versions.tf`, then from `terraform/`:
+Then create `terraform/backend.tf` from the template and fill it in with the
+`backend_config` output above:
 
 ```bash
+cd ..
+cp backend.tf.example backend.tf
+$EDITOR backend.tf
 terraform init -migrate-state
 ```
+
+`backend.tf` is gitignored because the bucket name is globally unique and
+normally embeds an AWS account id. `backend.tf.example` is the tracked
+template, so a fresh clone has no backend until you create the file.
 
 ### 2. Core stack
 

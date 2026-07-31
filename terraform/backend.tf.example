@@ -1,1 +1,25 @@
-# example file
+# Copy to backend.tf and fill in the values from terraform/bootstrap.
+#
+#   cp backend.tf.example backend.tf
+#   terraform init
+#
+# backend.tf is gitignored: S3 bucket names are globally unique and this one
+# embeds an AWS account id, which is an identifier that does not belong in a
+# public repository.
+#
+# bucket         - state bucket created by terraform/bootstrap (state_bucket_name)
+# key            - path to the state file inside that bucket; any value works,
+#                  but keep it stable or terraform will not find existing state
+# region         - region of the bucket, normally the same as aws_region
+# dynamodb_table - lock table created by terraform/bootstrap (lock_table_name)
+# encrypt        - always true; the state file contains RDS credentials
+
+terraform {
+  backend "s3" {
+    bucket         = "REPLACE_ME-tfstate-000000000000"
+    key            = "aws-performance-benchmark/terraform.tfstate"
+    region         = "ap-northeast-1"
+    dynamodb_table = "aws-perf-bench-tf-locks"
+    encrypt        = true
+  }
+}

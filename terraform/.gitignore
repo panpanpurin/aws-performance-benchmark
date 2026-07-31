@@ -10,6 +10,8 @@ override.tf.json
 terraform.tfvars
 *.auto.tfvars
 !terraform.tfvars.example
+backend.tf
+!backend.tf.example
 .terraformrc
 terraform.rc
 generated/

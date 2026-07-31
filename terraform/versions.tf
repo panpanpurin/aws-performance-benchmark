@@ -15,12 +15,8 @@ terraform {
       version = "~> 2.5"
     }
   }
-
-  backend "s3" {
-    bucket         = "dev-benchmark-tfstate-976902183321"
-    key            = "aws-performance-benchmark/terraform.tfstate"
-    region         = "ap-northeast-1"
-    dynamodb_table = "aws-perf-bench-tf-locks"
-    encrypt        = true
-  }
 }
+
+# The S3 backend lives in backend.tf, which is gitignored because the bucket
+# name embeds an AWS account id. Copy backend.tf.example to backend.tf and fill
+# in the values produced by terraform/bootstrap.

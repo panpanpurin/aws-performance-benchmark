@@ -16,6 +16,7 @@ resource "aws_iam_role" "ecs_instance" {
   tags = merge(var.tags, {
     Name      = "${var.name}-ecs-instance"
     Component = "iam"
+    Platform  = "ecs"
   })
 }
 
@@ -36,6 +37,7 @@ resource "aws_iam_instance_profile" "ecs_instance" {
   tags = merge(var.tags, {
     Name      = "${var.name}-ecs-instance"
     Component = "iam"
+    Platform  = "ecs"
   })
 }
 
@@ -50,6 +52,7 @@ resource "aws_ecs_cluster" "this" {
   tags = merge(var.tags, {
     Name      = "${var.name}-cluster"
     Component = "ecs"
+    Platform  = "ecs"
   })
 }
 
@@ -96,12 +99,14 @@ resource "aws_launch_template" "ecs" {
     tags = merge(var.tags, {
       Name      = "${var.name}-ecs-instance"
       Component = "ecs"
+      Platform  = "ecs"
     })
   }
 
   tags = merge(var.tags, {
     Name      = "${var.name}-ecs-lt"
     Component = "ecs"
+    Platform  = "ecs"
   })
 }
 
@@ -119,10 +124,19 @@ resource "aws_autoscaling_group" "ecs" {
     version = "$Latest"
   }
 
-  tag {
-    key                 = "Name"
-    value               = "${var.name}-ecs-instance"
-    propagate_at_launch = true
+  # aws_autoscaling_group takes tag blocks rather than a tags map and does not
+  # inherit provider default_tags, so the shared tags are expanded here.
+  dynamic "tag" {
+    for_each = merge(var.tags, {
+      Name      = "${var.name}-ecs-instance"
+      Component = "ecs"
+      Platform  = "ecs"
+    })
+    content {
+      key                 = tag.key
+      value               = tag.value
+      propagate_at_launch = true
+    }
   }
 
   tag {
@@ -155,6 +169,7 @@ resource "aws_ecs_capacity_provider" "ec2" {
   tags = merge(var.tags, {
     Name      = "${var.name}-ec2-cp"
     Component = "ecs"
+    Platform  = "ecs"
   })
 }
 
@@ -250,6 +265,7 @@ resource "aws_ecs_task_definition" "app" {
     Name      = "${var.name}-${each.value.name}"
     App       = each.key
     Component = "ecs"
+    Platform  = "ecs"
   })
 }
 
@@ -289,6 +305,7 @@ resource "aws_ecs_service" "app" {
     Name      = "${var.name}-${each.value.name}"
     App       = each.key
     Component = "ecs"
+    Platform  = "ecs"
   })
 
   depends_on = [aws_ecs_cluster_capacity_providers.this]

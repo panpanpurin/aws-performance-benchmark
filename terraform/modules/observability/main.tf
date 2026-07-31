@@ -1,3 +1,5 @@
+# One log group per app per platform. The map key is "<platform>/<app>", which
+# is split back out below to tag each group with its own Platform and App.
 locals {
   groups = merge(
     { for k, a in var.apps : "ec2/${k}" => "/ec2/${a.name}" },
@@ -15,5 +17,7 @@ resource "aws_cloudwatch_log_group" "this" {
   tags = merge(var.tags, {
     Name      = each.value
     Component = "observability"
+    Platform  = split("/", each.key)[0]
+    App       = split("/", each.key)[1]
   })
 }

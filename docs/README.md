@@ -7,6 +7,7 @@
 3. [terraform/README.md](../terraform/README.md): apply the stack
 4. [DEPLOY.md](./DEPLOY.md): images, env vars, metrics wiring
 5. [PARALLEL-BENCHMARK.md](./PARALLEL-BENCHMARK.md): Artillery for side by side charts
+6. [COSTS.md](./COSTS.md): what a run costs before you apply anything
 
 ## In this folder
 
@@ -17,6 +18,7 @@
 | [DEPLOY.md](./DEPLOY.md) | Packaging, env vars, RDS, TLS, schemas, build commands |
 | [WORKLOADS.md](./WORKLOADS.md) | CPU, memory, and I/O profile of each app |
 | [PARALLEL-BENCHMARK.md](./PARALLEL-BENCHMARK.md) | Parallel Artillery (EC2 + ECS + Lambda) |
+| [COSTS.md](./COSTS.md) | Tokyo price estimate, per-run cost, cost allocation tags |
 
 ## Elsewhere
 

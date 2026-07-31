@@ -108,6 +108,7 @@ resource "aws_lb_listener" "http" {
   }
 
   tags = merge(var.tags, {
+    Name      = "${var.name}-http"
     Component = "alb"
   })
 }
@@ -130,6 +131,13 @@ resource "aws_lb_listener_rule" "http_ec2" {
       values = [each.value.host_ec2]
     }
   }
+
+  tags = merge(var.tags, {
+    Name      = "${var.name}-${each.key}-ec2-http"
+    Component = "alb"
+    Platform  = "ec2"
+    App       = each.key
+  })
 }
 
 resource "aws_lb_listener_rule" "http_ecs" {
@@ -150,6 +158,13 @@ resource "aws_lb_listener_rule" "http_ecs" {
       values = [each.value.host_ecs]
     }
   }
+
+  tags = merge(var.tags, {
+    Name      = "${var.name}-${each.key}-ecs-http"
+    Component = "alb"
+    Platform  = "ecs"
+    App       = each.key
+  })
 }
 
 resource "aws_lb_listener" "https" {
@@ -171,6 +186,7 @@ resource "aws_lb_listener" "https" {
   }
 
   tags = merge(var.tags, {
+    Name      = "${var.name}-https"
     Component = "alb"
   })
 }
@@ -193,6 +209,13 @@ resource "aws_lb_listener_rule" "https_ec2" {
       values = [each.value.host_ec2]
     }
   }
+
+  tags = merge(var.tags, {
+    Name      = "${var.name}-${each.key}-ec2-https"
+    Component = "alb"
+    Platform  = "ec2"
+    App       = each.key
+  })
 }
 
 resource "aws_lb_listener_rule" "https_ecs" {
@@ -213,4 +236,11 @@ resource "aws_lb_listener_rule" "https_ecs" {
       values = [each.value.host_ecs]
     }
   }
+
+  tags = merge(var.tags, {
+    Name      = "${var.name}-${each.key}-ecs-https"
+    Component = "alb"
+    Platform  = "ecs"
+    App       = each.key
+  })
 }

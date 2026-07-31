@@ -51,6 +51,7 @@ resource "aws_iam_role" "ec2_app" {
   tags = merge(var.tags, {
     Name      = "${var.name}-ec2-app"
     Component = "iam"
+    Platform  = "ec2"
   })
 }
 
@@ -116,6 +117,7 @@ resource "aws_iam_instance_profile" "ec2_app" {
   tags = merge(var.tags, {
     Name      = "${var.name}-ec2-app"
     Component = "iam"
+    Platform  = "ec2"
   })
 }
 
@@ -127,6 +129,7 @@ resource "aws_iam_role" "ecs_execution" {
   tags = merge(var.tags, {
     Name      = "${var.name}-ecs-execution"
     Component = "iam"
+    Platform  = "ecs"
   })
 }
 
@@ -161,6 +164,7 @@ resource "aws_iam_role" "ecs_task" {
   tags = merge(var.tags, {
     Name      = "${var.name}-ecs-task"
     Component = "iam"
+    Platform  = "ecs"
   })
 }
 
@@ -193,6 +197,7 @@ resource "aws_iam_role" "lambda" {
     Name      = "${var.name}-lambda-${each.key}"
     App       = each.key
     Component = "iam"
+    Platform  = "lambda"
   })
 }
 

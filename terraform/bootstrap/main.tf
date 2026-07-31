@@ -1,4 +1,5 @@
-# One-shot state backend. Apply here first, then enable the S3 backend in ../versions.tf.
+# One-shot state backend. Apply here first, then copy the backend_config output
+# into ../backend.tf (created from ../backend.tf.example, gitignored).
 
 terraform {
   required_version = ">= 1.5.0"
