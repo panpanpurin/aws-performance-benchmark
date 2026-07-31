@@ -21,7 +21,7 @@ variable "ami_id" {
 variable "instance_type" {
   type        = string
   description = "Container instance type."
-  default     = "t3.small"
+  default     = "c6i.large"
 }
 
 variable "asg_desired" {
@@ -112,4 +112,10 @@ variable "aws_region" {
 variable "tags" {
   type    = map(string)
   default = {}
+}
+
+variable "cpu_credits" {
+  type        = string
+  description = "CPU credit mode for burstable instance types: standard or unlimited. Ignored on non-burstable types."
+  default     = "standard"
 }

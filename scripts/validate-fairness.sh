@@ -180,6 +180,41 @@ else
     ok "Lambda spec identical across apps ($(printf '%b' "$lam_specs" | head -n 1 | tr '\t' '/'))"
   fi
 
+  # Worker counts. Provisioned capacity is only equal if each platform serves
+  # with the same number of workers: one EC2 container, one ECS task, and one
+  # Lambda sandbox. An uncapped Lambda scales to the account limit and would
+  # have many times the aggregate CPU of the other two under load.
+  want_workers="$(tfvar lambda_reserved_concurrency)"
+  : "${want_workers:=1}"
+  for key in "${APP_KEYS[@]}"; do
+    rc="$(aws lambda get-function-concurrency --region "$REGION" \
+      --function-name "${PROJECT}-$(app_name "$key")" \
+      --query 'ReservedConcurrentExecutions' --output text 2>/dev/null || true)"
+    [[ -n "$rc" ]] || continue
+    if [[ "$rc" == "None" ]]; then
+      if [[ "$want_workers" == "-1" ]]; then
+        warn "$key/lambda uncapped by design - measures elasticity, not per-request cost"
+      else
+        fail "$key/lambda has no reserved concurrency but tfvars asks for $want_workers - Lambda can outscale EC2/ECS"
+      fi
+    elif [[ "$rc" != "$want_workers" ]]; then
+      fail "$key/lambda reserved concurrency is $rc, tfvars says $want_workers"
+    else
+      ok "$key/lambda capped at $rc concurrent execution(s)"
+    fi
+  done
+
+  ecs_desired="$(aws ecs describe-services --region "$REGION" --cluster "${PROJECT}-cluster" \
+    --services anilove csv-processor thumbnail-generator \
+    --query 'services[].desiredCount' --output text 2>/dev/null || true)"
+  if [[ -n "$ecs_desired" ]]; then
+    for d in $ecs_desired; do
+      if [[ "$d" != "0" && "$want_workers" != "-1" && "$d" != "$want_workers" ]]; then
+        warn "an ECS service runs $d tasks while lambda is capped at $want_workers - worker counts differ"
+      fi
+    done
+  fi
+
   # ECS: identical cpu/memory across the three task definitions.
   ecs_specs=""
   for key in "${APP_KEYS[@]}"; do

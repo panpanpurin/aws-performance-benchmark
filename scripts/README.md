@@ -1,6 +1,6 @@
 # Scripts (bash + Node only)
 
-All automation lives here or under `benchmarks/scripts/`. No PowerShell (`.ps1`).
+All automation lives here or under `benchmarks/scripts/`.
 
 On Windows use **Git Bash** or **WSL**.
 

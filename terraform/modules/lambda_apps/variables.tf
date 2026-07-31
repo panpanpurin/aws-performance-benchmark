@@ -92,3 +92,9 @@ variable "tags" {
   type    = map(string)
   default = {}
 }
+
+variable "reserved_concurrency" {
+  type        = number
+  description = "Max concurrent executions per function. 1 matches the single worker EC2 and ECS each get; -1 removes the cap."
+  default     = 1
+}

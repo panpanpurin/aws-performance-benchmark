@@ -71,6 +71,16 @@ resource "aws_launch_template" "ecs" {
 
   vpc_security_group_ids = var.ecs_instance_security_group_ids
 
+  # See the equivalent block in modules/ec2_apps: t3 defaults to unlimited and
+  # t2 to standard, so both platforms are set explicitly to keep the credit
+  # behaviour identical. Non-burstable types reject the argument.
+  dynamic "credit_specification" {
+    for_each = can(regex("^t[234]", var.instance_type)) ? [1] : []
+    content {
+      cpu_credits = var.cpu_credits
+    }
+  }
+
   user_data = base64encode(<<-EOT
     #!/bin/bash
     echo ECS_CLUSTER=${aws_ecs_cluster.this.name} >> /etc/ecs/ecs.config

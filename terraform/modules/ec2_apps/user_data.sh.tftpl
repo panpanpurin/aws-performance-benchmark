@@ -37,5 +37,11 @@ if [[ -n "$IMAGE" ]]; then
   fi
 
   docker rm -f "$APP" 2>/dev/null || true
-  docker run -d --name "$APP" --restart unless-stopped -p "$PORT:$PORT" "$${ENV_ARGS[@]}" "$IMAGE"
+  # --cpus / --memory give the container the same budget as the ECS task
+  # definition (cpu 1024 = 1 vCPU, memory 1024 MB). Without them the container
+  # would use the whole instance, so a host larger than the ECS task would give
+  # EC2 more CPU than the other platforms and invalidate the comparison.
+  docker run -d --name "$APP" --restart unless-stopped \
+    --cpus="${container_cpus}" --memory="${container_memory_mb}m" \
+    -p "$PORT:$PORT" "$${ENV_ARGS[@]}" "$IMAGE"
 fi

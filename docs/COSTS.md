@@ -3,11 +3,18 @@
 What this stack costs to run in **ap-northeast-1 (Tokyo)**, and which parts
 dominate the bill.
 
-Summary: a full benchmark sweep across all three suites consumes about **$0.36**
-of Lambda compute. Keeping EC2, ECS, the ALB, the NAT gateway, and RDS running
-so the three platforms remain comparable costs about **$215 per month**. The
-fixed cost is roughly 600x the per-run variable cost, so the stack is designed
-to be applied, measured, and destroyed rather than left running.
+Summary: a full benchmark sweep across all three suites consumes about **$0.39**
+of Lambda compute, and one apply-measure-destroy session costs about **$7.30**.
+Leaving the same stack running for a month would cost about **$591**, because
+non-burstable instances bill by the hour whether or not a test is running. The
+stack is designed to be applied, measured, and destroyed.
+
+Most of that cost is the deliberate choice of non-burstable `c6i.large` over
+the much cheaper `t2.micro` / `t3.small` used in earlier revisions: burstable
+instances throttle once CPU credits are exhausted, and t2 and t3 default to
+opposite credit modes. The reasoning, and how to switch back for cheap smoke
+tests, is in
+[INFRASTRUCTURE.md](./INFRASTRUCTURE.md#instance-type-choice-why-not-burstable).
 
 ## Price source
 
@@ -17,7 +24,7 @@ Reproduce any of them with:
 
 ```bash
 aws pricing get-products --region us-east-1 --service-code AmazonEC2 \
-  --filters "Type=TERM_MATCH,Field=instanceType,Value=t3.small" \
+  --filters "Type=TERM_MATCH,Field=instanceType,Value=c6i.large" \
             "Type=TERM_MATCH,Field=location,Value=Asia Pacific (Tokyo)" \
             "Type=TERM_MATCH,Field=operatingSystem,Value=Linux" \
             "Type=TERM_MATCH,Field=tenancy,Value=Shared" \
@@ -28,8 +35,8 @@ aws pricing get-products --region us-east-1 --service-code AmazonEC2 \
 
 | Resource | Unit price (Tokyo) |
 |----------|--------------------|
-| EC2 `t2.micro` | $0.0152 / hour |
-| EC2 `t3.small` | $0.0272 / hour |
+| EC2 `c6i.large` (non-burstable) | $0.1070 / hour |
+| EC2 `t2.micro` / `t3.small` (burstable, no longer used) | $0.0152 / $0.0272 per hour |
 | EBS `gp3` | $0.096 / GB-month |
 | NAT gateway | $0.062 / hour + $0.062 / GB processed |
 | ALB | $0.0243 / hour + $0.008 / LCU-hour |
@@ -50,10 +57,11 @@ From `terraform/`, with the committed `terraform.tfvars`:
 
 - 1 VPC across 3 AZs, 3 public and 3 private subnets, **1** NAT gateway
 - 1 ALB, public, HTTP-only unless `domain_name` is set
-- 3 EC2 app instances (`t2.micro`, one per app), private subnets, 20 GB gp3 each
-- 1 ECS cluster on an ASG of `t3.small`, 30 GB gp3 each
+- 3 EC2 app instances (`c6i.large`, one per app), private subnets, 20 GB gp3 each;
+  each app container is capped at 1 vCPU / 1024 MB to match the ECS task
+- 1 ECS cluster on an ASG of `c6i.large`, 30 GB gp3 each
 - 1 RDS `db.t4g.micro`, 20 GB gp3, Single-AZ, 1-day backup retention
-- 3 Lambda functions, 1024 MB, container image, Function URLs
+- 3 Lambda functions, 1769 MB (one full vCPU), container image, Function URLs
 - 6 ECR images (3 apps x EC2/ECS + Lambda variants), 2 secrets, 9 log groups
 
 Both EC2 apps and ECS container instances sit in **private** subnets, so all
@@ -66,9 +74,9 @@ uses 3, the state an actual benchmark runs in.
 
 | Line item | Calculation | $/month |
 |-----------|-------------|---------|
-| ECS instances, 3x `t3.small` | 3 x 730 x $0.0272 | 59.57 |
+| ECS instances, 3x `c6i.large` | 3 x 730 x $0.1070 | 234.33 |
 | NAT gateway hours | 730 x $0.062 | 45.26 |
-| EC2 apps, 3x `t2.micro` | 3 x 730 x $0.0152 | 33.29 |
+| EC2 apps, 3x `c6i.large` | 3 x 730 x $0.1070 | 234.33 |
 | RDS instance | 730 x $0.025 | 18.25 |
 | ALB hours | 730 x $0.0243 | 17.74 |
 | Public IPv4, 3 ALB nodes + 1 NAT | 4 x 730 x $0.005 | 14.60 |
@@ -82,9 +90,10 @@ uses 3, the state an actual benchmark runs in.
 | ECR storage (assume ~2.5 GB) | 2.5 x $0.10 | 0.25 |
 | S3 + DynamoDB state backend | negligible | 0.10 |
 | Lambda | idle, no invocations | 0.00 |
-| **Total** | | **≈ 215.00** |
+| **Total** | | **≈ 590.80** |
 
-Four line items (ECS, NAT, EC2, RDS) are 73% of the bill.
+Compute alone (EC2 apps plus ECS instances) is 79% of the bill. Non-burstable
+instances are what make an always-on stack expensive; see Scenario C.
 
 Rows marked "assume" depend on how much you actually run; the rest are fixed
 by the stack's shape.
@@ -95,10 +104,10 @@ by the stack's shape.
 
 | | $/month |
 |---|---|
-| Scenario A | 215.00 |
-| less ECS instances | -59.57 |
+| Scenario A | 590.80 |
+| less ECS instances | -234.33 |
 | less ECS EBS | -8.64 |
-| **Total** | **≈ 146.79** |
+| **Total** | **≈ 347.83** |
 
 Everything else continues billing. Scaling ECS down removes under a third of
 the monthly cost; the NAT gateway, ALB, EC2 instances, and RDS are unaffected.
@@ -109,24 +118,24 @@ The intended lifecycle. Hourly burn with the full stack up:
 
 | Component | $/hour |
 |-----------|--------|
-| ECS, 3x `t3.small` | 0.0816 |
+| ECS, 3x `c6i.large` | 0.3210 |
 | NAT gateway | 0.0620 |
-| EC2 apps, 3x `t2.micro` | 0.0456 |
+| EC2 apps, 3x `c6i.large` | 0.3210 |
 | RDS | 0.0250 |
 | ALB | 0.0243 |
 | Public IPv4, 4 addresses | 0.0200 |
 | EBS, 150 GB gp3 amortised | 0.0197 |
-| **Total** | **≈ 0.2782** |
+| **Total** | **≈ 0.7930** |
 
 A full session (apply, push images, three 32-minute suites, teardown) is
 roughly 8 hours of uptime:
 
 | | $ |
 |---|---|
-| 8 hours of stack | 2.23 |
+| 8 hours of stack | 6.34 |
 | Lambda, full sweep | 0.36 |
 | CloudWatch Logs + NAT data | ~0.60 |
-| **Per session** | **≈ 3.20** |
+| **Per session** | **≈ 7.30** |
 
 After `make destroy`, only the bootstrap state backend survives, well under
 $0.50/month. `make destroy` also removes the ECR repositories, so the next
@@ -144,13 +153,16 @@ Request volume comes from the Artillery phase definitions in
 | thumbnail-generator | 32 min | 13,740 |
 | **Total** | | **96,420** |
 
-At 1024 MB, assuming mean durations of 50 ms (anilove, DB-bound), 300 ms
-(csv-processor, CPU-bound), and 500 ms (thumbnail-generator, Sharp):
+At 1769 MB (1.73 GB, one full vCPU), assuming mean durations of 45 ms
+(anilove, DB-bound), 175 ms (csv-processor, CPU-bound) and 290 ms
+(thumbnail-generator, Sharp):
 
-- Compute: ~20,724 GB-seconds x $0.0000166667 = **$0.35**
+- Compute: ~22,000 GB-seconds x $0.0000166667 = **$0.37**
 - Requests: 96,420 x $0.20/million = **$0.02**
 
-**≈ $0.36 per full sweep**, before free tier. The duration assumptions are
+**≈ $0.39 per full sweep**, before free tier. Raising Lambda from 1024 MB to
+1769 MB is close to cost-neutral for CPU-bound work: memory rises 1.7x while
+duration falls by roughly the same factor. The duration assumptions are
 estimates; replace them with `app_total_execution_time_seconds` from Grafana
 once the suites have run.
 
@@ -163,7 +175,7 @@ Ordered by saving:
 
 1. **Destroy between sessions.** `make destroy` beats every other lever
    combined. The stack reapplies in minutes.
-2. **`make ecs-down` when idle** (-$68/month) if the stack must stay up.
+2. **`make ecs-down` when idle** (-$243/month) if the stack must stay up.
 3. **NAT gateway** (-$46/month). It exists only so private subnets can reach
    ECR and the internet. Setting `enable_nat_gateway = false` breaks image
    pulls unless you add VPC endpoints for ECR, S3, CloudWatch Logs, and
@@ -181,11 +193,15 @@ invalidates the benchmark. `make validate-fairness` checks for exactly this.
 
 ## Free tier
 
-A new AWS account covers a meaningful share of Scenario A: 750 hours of
+Free tier is close to irrelevant here. It covers 750 hours of
 `t2.micro`/`t3.micro`, 750 hours of `db.t4g.micro`, 1M Lambda requests and
-400,000 GB-seconds per month. Free tier does **not** cover NAT gateway, ALB,
-`t3.small`, or public IPv4 addresses, which together are about $137/month of
-Scenario A. Do not plan a long-running stack around the free tier.
+400,000 GB-seconds per month, but **`c6i.large` is not free-tier eligible**, so
+the largest line item (79% of Scenario A) is billed in full. NAT gateway, ALB
+and public IPv4 addresses are not covered either. Only RDS and part of the
+Lambda usage fall inside the allowance.
+
+Reverting to burstable types to reach the free tier would reintroduce the CPU
+credit confound that the non-burstable choice exists to remove.
 
 ## Attributing cost per platform
 

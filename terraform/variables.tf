@@ -36,14 +36,14 @@ variable "ecs_ami_id" {
 
 variable "ec2_instance_type" {
   type        = string
-  description = "EC2 app instance type."
-  default     = "t2.micro"
+  description = "EC2 app instance type. Non-burstable keeps CPU credits out of the comparison."
+  default     = "c6i.large"
 }
 
 variable "ecs_instance_type" {
   type        = string
-  description = "ECS container instance type."
-  default     = "t3.small"
+  description = "ECS container instance type. Matches ec2_instance_type so both platforms share a host profile."
+  default     = "c6i.large"
 }
 
 variable "ecs_asg_desired" {
@@ -90,8 +90,8 @@ variable "ecs_service_desired_count" {
 
 variable "lambda_memory_mb" {
   type        = number
-  description = "Lambda memory (MB)."
-  default     = 1024
+  description = "Lambda memory (MB). 1769 is the point where Lambda allocates one full vCPU, matching the 1 vCPU given to EC2 and ECS."
+  default     = 1769
 }
 
 variable "lambda_ephemeral_mb" {
@@ -265,4 +265,26 @@ variable "tags_extra" {
   type        = map(string)
   description = "Extra tags merged into defaults."
   default     = {}
+}
+
+variable "cpu_credits" {
+  type        = string
+  description = "CPU credit mode when a burstable instance type is used: standard or unlimited. Applied to EC2 apps and ECS instances alike so neither platform bursts while the other throttles. Ignored on non-burstable types."
+  default     = "standard"
+
+  validation {
+    condition     = contains(["standard", "unlimited"], var.cpu_credits)
+    error_message = "Must be standard or unlimited."
+  }
+}
+
+variable "lambda_reserved_concurrency" {
+  type        = number
+  description = "Max concurrent executions per Lambda function. 1 gives Lambda the same worker count as one EC2 container and one ECS task, so provisioned capacity is equal across platforms and the measurement isolates per-request cost. Set to -1 to remove the cap and measure elasticity instead."
+  default     = 1
+
+  validation {
+    condition     = var.lambda_reserved_concurrency == -1 || var.lambda_reserved_concurrency >= 1
+    error_message = "Must be -1 (uncapped) or a positive integer."
+  }
 }

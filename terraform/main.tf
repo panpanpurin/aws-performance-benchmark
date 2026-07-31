@@ -148,6 +148,12 @@ module "ec2_apps" {
   subnet_ids            = module.network.private_subnet_ids
   security_group_ids    = [module.security_groups.ec2_sg_id]
   instance_profile_name = module.iam.ec2_instance_profile_name
+  cpu_credits           = var.cpu_credits
+
+  # The app container is capped at the same budget as the ECS task, so the
+  # host size does not change how much CPU the application actually gets.
+  container_cpus      = var.ecs_task_cpu / 1024
+  container_memory_mb = var.ecs_task_memory
   apps = {
     for k, a in local.apps : k => {
       name      = a.name
@@ -172,6 +178,7 @@ module "ecs_cluster" {
   private_subnet_ids              = module.network.private_subnet_ids
   ami_id                          = local.ecs_ami_id
   instance_type                   = var.ecs_instance_type
+  cpu_credits                     = var.cpu_credits
   asg_desired                     = var.ecs_asg_desired
   asg_min                         = var.ecs_asg_min
   asg_max                         = var.ecs_asg_max
@@ -218,6 +225,7 @@ module "lambda_apps" {
   image_refs                = local.lambda_image_refs
   role_arns                 = module.iam.lambda_role_arns
   memory_mb                 = var.lambda_memory_mb
+  reserved_concurrency      = var.lambda_reserved_concurrency
   ephemeral_mb              = var.lambda_ephemeral_mb
   timeout_s                 = var.lambda_timeout_s
   function_url_auth_type    = var.lambda_function_url_auth_type

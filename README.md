@@ -4,40 +4,102 @@ Compare **EC2**, **ECS on EC2**, and **AWS Lambda** with three instrumented work
 
 One codebase per app, dual entrypoints, dual Docker images. Compare platforms, not different forks.
 
+## What is controlled
+
+The comparison only means something if the compute model is the sole
+difference. Each platform gets **one vCPU, 1 GB, and one worker**:
+
+| | EC2 | ECS on EC2 | Lambda |
+|---|---|---|---|
+| Host | `c6i.large` | `c6i.large` | managed |
+| CPU / memory | `--cpus=1 --memory=1024m` | task `cpu=1024`, `memory=1024` | 1769 MB = one full vCPU |
+| Workers under load | 1 container | 1 task | reserved concurrency 1 |
+
+Hosts are non-burstable so CPU credits cannot vary between platforms or across
+runs. Thread pools are pinned inside the apps (`OMP_NUM_THREADS=1`,
+`sharp.concurrency(1)`). `make validate-fairness` checks these hold.
+
+Reasoning: [docs/INFRASTRUCTURE.md](./docs/INFRASTRUCTURE.md#instance-type-choice-why-not-burstable).
+
 ## Prerequisites
 
 - Docker Desktop with Compose **v2.20+** (root and suite stacks use `include`)
 - Node.js and npm (Artillery via `npx`; local load tests)
+- **bash** — Git Bash or WSL on Windows; all automation is bash + Node
+- GNU Make
+- For AWS runs only: AWS CLI v2 with credentials, Terraform **>= 1.5**
+
+`make check` verifies all of the above.
 
 ## Start here
+
+Local, no AWS account needed:
 
 ```bash
 make help                 # list common commands
 make local-up             # apps + metrics on Docker
 make local-test           # Artillery vs localhost
-make bench-anilove        # Prometheus/Grafana for AniLove
-make artillery-anilove    # EC2 + ECS + Lambda load (bash)
+make local-down
 ```
 
-Default AWS region: **ap-northeast-1** (Tokyo).
+Default AWS region: **ap-northeast-1** (Tokyo). A full AWS session costs about
+US$ 7 and takes ~8 hours including teardown — see [docs/COSTS.md](./docs/COSTS.md).
 
-Before AWS Artillery, set each suite `target` (repo ships `https://REPLACE_ME`). Use Terraform outputs or [ARTILLERY-TARGETS.md](./benchmarks/docs/ARTILLERY-TARGETS.md).
+```bash
+make check                                          # tools + credentials
+cp terraform/backend.tf.example terraform/backend.tf   # then fill it in
+make validate-tf                                    # fmt, validate, tfvars, ECR
+make apply
+make push-images
+make sync-targets                                   # fills the REPLACE_ME targets
+make ecs-up
+make validate-aws                                   # every target healthy
+make validate-fairness                              # only the compute model varies
+make bench-anilove                                  # Prometheus + Grafana
+make metrics-proxy                                  # AniLove only, leave running
+make validate-bench                                 # before a 30+ minute run
+make artillery-anilove                              # EC2 + ECS + Lambda in parallel
+make destroy                                        # or make ecs-down
+```
+
+The repository ships Artillery `target` as `https://REPLACE_ME` and empty
+Prometheus scrape targets on purpose, so no live endpoint is published.
+`make sync-targets` fills the former from Terraform outputs; the latter are
+filled per [PROMETHEUS-TARGETS.md](./benchmarks/docs/PROMETHEUS-TARGETS.md).
 
 | Goal | Where |
 |------|--------|
 | Local path | `make local-up` then `make local-test` |
 | Deploy AWS infra | [terraform/README.md](./terraform/README.md) |
 | Push images to ECR | `make push-images` |
+| Check a config before spending time or money | `make validate` |
 | Scripts / automation | [scripts/README.md](./scripts/README.md) |
 | AWS load + charts (one suite) | `make bench-anilove` then `make artillery-anilove` |
 | All three suites together | `make bench-anilove bench-csv bench-thumbnail` |
 | Workload bounds | [docs/WORKLOADS.md](./docs/WORKLOADS.md) |
 | Infrastructure design | [docs/INFRASTRUCTURE.md](./docs/INFRASTRUCTURE.md) |
+| What a run costs | [docs/COSTS.md](./docs/COSTS.md) |
+| Reading the results / paper companion | [docs/PAPER-SSCAD-2026.md](./docs/PAPER-SSCAD-2026.md) |
 | IAM | [docs/IAM.md](./docs/IAM.md) |
 | Deploy, images, env | [docs/DEPLOY.md](./docs/DEPLOY.md) |
 | Parallel Artillery | [docs/PARALLEL-BENCHMARK.md](./docs/PARALLEL-BENCHMARK.md) |
 | Suite host ports | [benchmarks/docs/PORTS.md](./benchmarks/docs/PORTS.md) |
 | Full doc index | [docs/README.md](./docs/README.md) |
+
+## Validation
+
+Four read-only checks, each wired to a `make` target. They exist because the
+failure modes here are silent: a run completes and the dashboards render even
+when the configuration invalidates the comparison.
+
+| Target | Checks |
+|--------|--------|
+| `make validate-tf` | `fmt`, `validate`, backend wiring, tfvars, vCPU parity, ECR images vs `enable_*` |
+| `make validate-bench` | Artillery targets and Host headers, pushgateway ports, Prometheus jobs, compose ports |
+| `make validate-aws` | Target-group health, ECS counts, EC2 status checks, Lambda state, RDS |
+| `make validate-fairness` | Shared metric names, thread pins, worker counts, deployed specs, live `/metrics` |
+
+`make validate` runs the two that need no AWS credentials.
 
 ## Repository layout
 

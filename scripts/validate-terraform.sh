@@ -198,9 +198,43 @@ if [[ -n "$BACKEND_REGION" && -n "$AWS_REGION_TFVARS" && "$BACKEND_REGION" != "$
   warn "backend region ($BACKEND_REGION) differs from aws_region ($AWS_REGION_TFVARS)"
 fi
 
-# The comparison only holds if the platforms get equivalent resources.
-if [[ -n "$LAMBDA_MEM" && -n "$ECS_MEM" && "$LAMBDA_MEM" != "$ECS_MEM" ]]; then
-  warn "lambda_memory_mb=$LAMBDA_MEM vs ecs_task_memory=$ECS_MEM - unequal memory weakens the comparison"
+# Lambda couples CPU to memory: it allocates one full vCPU at 1769 MB. The
+# platforms are matched on CPU rather than memory, so compare vCPU budgets.
+# ECS: cpu units / 1024. EC2 container is capped at the same value.
+ECS_CPU="$(hcl_value "$TFVARS" ecs_task_cpu)"
+if [[ -n "$LAMBDA_MEM" && -n "$ECS_CPU" ]]; then
+  cpu_delta="$(node -e "
+    const lam = Number(process.argv[1]) / 1769;
+    const ecs = Number(process.argv[2]) / 1024;
+    process.stdout.write(JSON.stringify({
+      lam: lam.toFixed(2), ecs: ecs.toFixed(2),
+      off: Math.abs(lam - ecs) > 0.1
+    }));" "$LAMBDA_MEM" "$ECS_CPU" 2>/dev/null || echo '{}')"
+  case "$cpu_delta" in
+    *'"off":true'*)
+      lam_v="$(sed -n 's/.*"lam":"\([^"]*\)".*/\1/p' <<<"$cpu_delta")"
+      ecs_v="$(sed -n 's/.*"ecs":"\([^"]*\)".*/\1/p' <<<"$cpu_delta")"
+      warn "vCPU budgets differ: lambda ${lam_v} (${LAMBDA_MEM} MB / 1769) vs ecs/ec2 ${ecs_v} (${ECS_CPU} / 1024)"
+      ;;
+    *'"off":false'*)
+      ok "vCPU budget matched across platforms (lambda_memory_mb=$LAMBDA_MEM, ecs_task_cpu=$ECS_CPU)"
+      ;;
+  esac
+fi
+
+# Burstable families default to opposite credit modes (t2 standard,
+# t3/t4g unlimited), which would let one platform burst while the other throttles.
+EC2_TYPE="$(hcl_value "$TFVARS" ec2_instance_type)"
+ECS_TYPE="$(hcl_value "$TFVARS" ecs_instance_type)"
+CPU_CREDITS="$(hcl_value "$TFVARS" cpu_credits)"
+if [[ "$EC2_TYPE" =~ ^t[234] || "$ECS_TYPE" =~ ^t[234] ]]; then
+  if [[ -z "$CPU_CREDITS" ]]; then
+    fail "burstable instance types in use ($EC2_TYPE / $ECS_TYPE) but cpu_credits is unset - t2 defaults to standard and t3 to unlimited"
+  else
+    warn "burstable types in use ($EC2_TYPE / $ECS_TYPE) with cpu_credits=$CPU_CREDITS - credit depletion makes repeated runs non-independent"
+  fi
+else
+  ok "non-burstable instance types ($EC2_TYPE / $ECS_TYPE) - no CPU credit effects"
 fi
 
 echo "     project=$PROJECT_NAME region=${AWS_REGION_TFVARS:-?} enable ec2=$EN_EC2 ecs=$EN_ECS lambda=$EN_LAMBDA"

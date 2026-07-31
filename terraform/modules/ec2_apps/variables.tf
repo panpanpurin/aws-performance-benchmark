@@ -11,7 +11,7 @@ variable "ami_id" {
 variable "instance_type" {
   type        = string
   description = "Instance type."
-  default     = "t2.micro"
+  default     = "c6i.large"
 }
 
 variable "subnet_ids" {
@@ -65,6 +65,24 @@ variable "jwt_secret_arn" {
 variable "aws_region" {
   type        = string
   description = "Region for AWS CLI in user_data."
+}
+
+variable "container_cpus" {
+  type        = number
+  description = "vCPUs granted to the app container (docker --cpus). Must match the ECS task's cpu units / 1024."
+  default     = 1
+}
+
+variable "container_memory_mb" {
+  type        = number
+  description = "Memory granted to the app container in MB (docker --memory). Must match the ECS task memory."
+  default     = 1024
+}
+
+variable "cpu_credits" {
+  type        = string
+  description = "CPU credit mode for burstable instance types: standard or unlimited. Ignored on non-burstable types."
+  default     = "standard"
 }
 
 variable "tags" {

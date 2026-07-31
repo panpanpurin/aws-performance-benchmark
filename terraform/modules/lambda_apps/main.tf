@@ -9,6 +9,12 @@ resource "aws_lambda_function" "app" {
   timeout       = var.timeout_s
   architectures = ["x86_64"]
 
+  # Caps how many sandboxes may run at once. Set to 1 so Lambda has the same
+  # number of workers as one EC2 container and one ECS task, which keeps
+  # provisioned capacity equal across platforms. -1 removes the cap and lets
+  # Lambda scale to the account limit, which measures elasticity instead.
+  reserved_concurrent_executions = var.reserved_concurrency
+
   ephemeral_storage {
     size = var.ephemeral_mb
   }

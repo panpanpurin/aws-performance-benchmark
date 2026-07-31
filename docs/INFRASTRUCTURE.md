@@ -109,8 +109,9 @@ CSV and Thumbnail: **no RDS**.
 | Item | Configuration |
 |------|----------------|
 | Region | ap-northeast-1 |
-| Instance type | `t2.micro` |
+| Instance type | `c6i.large` (non-burstable, no CPU credits) |
 | Count | One instance per app |
+| Container limits | `--cpus=1 --memory=1024m`, matching the ECS task |
 | AMI | Amazon Linux 2023 (pin in `tfvars`, or SSM latest) |
 | Public access | Only via shared ALB |
 | Security group | Ingress from ALB SG on app ports only |
@@ -123,19 +124,72 @@ CSV and Thumbnail: **no RDS**.
 |------|----------------|
 | Layout | One cluster, three services |
 | Capacity | ASG + capacity provider |
-| Instance type | `t3.small` host; fairness via **task** limits |
+| Instance type | `c6i.large` host; fairness via **task** limits |
 | Task | `cpu=1024`, `memory=1024` |
 | Network | `awsvpc` |
 | Images | Same long running Dockerfiles as EC2 (ECR) |
 | ALB | Same shared ALB |
 | Measurement | Scale other services to desired count **0** when focusing one app |
 
+## Instance type choice: why not burstable
+
+Earlier revisions of this stack used burstable instances. They were replaced
+because they introduced differences between platforms that had nothing to do
+with the compute model.
+
+| | Previous | Current |
+|---|---|---|
+| EC2 apps | `t2.micro` (1 vCPU, 1 GiB) | `c6i.large` (2 vCPU, 4 GiB) |
+| ECS hosts | `t3.small` (2 vCPU, 2 GiB) | `c6i.large` (2 vCPU, 4 GiB) |
+| Container limits | none; container used the whole instance | `--cpus=1 --memory=1024m` |
+| CPU credits | defaults, and the defaults differ | not applicable |
+| Cost per hour (Tokyo, 3+3 instances) | $0.127 | $0.642 |
+
+Three problems with the previous setup:
+
+1. **t2 and t3 default to opposite credit modes.** `t2` launches as `standard`
+   and throttles to its baseline (~10% of a vCPU) once credits run out. `t3`
+   launches as `unlimited` and keeps bursting, billing the surplus. Under a
+   sustained load phase, EC2 would collapse while ECS carried on — a
+   difference produced by the credit mode, not by EC2 versus ECS.
+2. **Credit balance carries across runs.** A 32-minute run at high CPU on
+   `t2.micro` burns roughly 25 credits while earning 3, and the balance refills
+   at 6 per hour. Repeated runs on the same instance therefore measure a
+   degrading system rather than repeated samples of the same one.
+3. **The container was not capped.** `docker run` had no `--cpus`/`--memory`,
+   so the EC2 app received the entire instance while the ECS task was limited
+   by its task definition. This happened to be equivalent only because
+   `t2.micro` is exactly 1 vCPU / 1 GiB; any change of instance size would
+   have silently given EC2 more CPU than the other platforms.
+
+`c6i.large` is non-burstable, so none of the above applies. It is the smallest
+current-generation x86 instance that is not burstable — AWS offers no 1-vCPU
+non-burstable type — so half of each host is deliberately left idle and the
+container is capped at 1 vCPU to match the ECS task and Lambda.
+
+### Using burstable types anyway
+
+Cheap smoke tests do not need `c6i.large`. Set the types back in
+`terraform.tfvars` and the `cpu_credits` variable applies the same credit mode
+to **both** platforms, which removes problem 1:
+
+```hcl
+ec2_instance_type = "t2.micro"
+ecs_instance_type = "t3.small"
+cpu_credits       = "standard"
+```
+
+Problem 2 remains: results from repeated runs are not comparable unless the
+instances are recreated between them. `make validate-tf` warns when burstable
+types are configured and fails if `cpu_credits` is left unset.
+
 ## Lambda
 
 | Item | Configuration |
 |------|----------------|
 | Packaging | ECR container images (`Dockerfile.lambda`) |
-| Memory / ephemeral | 1024 MB each |
+| Memory / ephemeral | 1769 MB memory (one full vCPU) / 1024 MB ephemeral |
+| Concurrency | `reserved_concurrent_executions = 1`, matching one EC2 container and one ECS task; `-1` removes the cap |
 | Timeout | 30 s |
 | Architecture | x86_64 |
 | HTTPS | Function URL only |
@@ -147,9 +201,9 @@ CSV and Thumbnail: **no RDS**.
 
 | Component | Main parameters |
 |-----------|-----------------|
-| EC2 | `t2.micro`; shared ALB |
+| EC2 | `c6i.large`, container capped at 1 vCPU / 1024 MiB; shared ALB |
 | ECS | One cluster; task 1024 CPU / 1024 MiB; same ALB |
-| Lambda | 1024 MB; Function URL |
+| Lambda | 1769 MB (one full vCPU); Function URL |
 | TLS | One ACM cert + TLS policy on ALB (when domain set) |
 | RDS | One `db.t4g.micro`; schemas `ec2` / `ecs` / `lambda` |
 

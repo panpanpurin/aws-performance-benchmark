@@ -29,9 +29,9 @@ Build **one** image from `Dockerfile` for EC2 and ECS. Build a **separate** imag
 
 | Platform | Default sizing (Terraform) |
 |----------|----------------------------|
-| EC2 | `t2.micro` |
-| ECS task | 1024 CPU / 1024 MiB (on `t3.small` capacity) |
-| Lambda | 1024 MB memory, 1024 MB ephemeral, 30 s timeout |
+| EC2 | `c6i.large` host; container capped at 1 vCPU / 1024 MiB |
+| ECS task | 1024 CPU / 1024 MiB (on `c6i.large` capacity) |
+| Lambda | 1769 MB memory (one full vCPU), 1024 MB ephemeral, 30 s timeout |
 
 ## Environment variables
 

@@ -19,17 +19,83 @@ compute model is the only intended difference.
 | Parameter | Value |
 |-----------|-------|
 | Region | ap-northeast-1 (Tokyo) |
-| EC2 | `t2.micro`, one instance per workload |
-| ECS on EC2 | `t3.small` container instances; task 1024 CPU units / 1024 MB |
-| Lambda | 1024 MB memory, 1024 MB ephemeral, 30 s timeout, container image |
+| EC2 | `c6i.large` host, one per workload; container capped at 1 vCPU / 1024 MB |
+| ECS on EC2 | `c6i.large` hosts; task 1024 CPU units (1 vCPU) / 1024 MB |
+| Lambda | 1769 MB (one full vCPU), 1024 MB ephemeral, 30 s timeout, container image, **reserved concurrency 1** |
 | Database | one `db.t4g.micro` PostgreSQL 17.6, Single-AZ, shared by all platforms |
 | Load generator | Artillery 2.0.23, five phases, ~32 min per run |
 | Requests per run | 43,800 (anilove), 38,880 (csv), 13,740 (thumbnail) |
 
-CPU is pinned to approximate one vCPU on every platform:
+**Every platform gets one vCPU and 1 GB**, enforced three different ways: the
+ECS task definition caps CPU units and memory, the EC2 `docker run` is given
+`--cpus` and `--memory` matching that task, and Lambda is set to 1769 MB, the
+point at which it allocates one full vCPU.
+
+Two consequences worth stating in the paper:
+
+- **Lambda couples CPU to memory.** Matching CPU at 1769 MB necessarily gives
+  Lambda ~1.7x the memory of the other platforms. You can match CPU or memory,
+  not both. CPU was chosen because two of the three workloads are CPU-bound;
+  `app_ram_peak_mb` shows that memory was never the binding constraint.
+- **The hosts are non-burstable.** `c6i.large` replaces the `t2.micro` /
+  `t3.small` pair used in earlier revisions, because burstable instances
+  throttle once CPU credits are exhausted, t2 and t3 default to opposite credit
+  modes, and credit balance carries across runs so repetitions are not
+  independent. Half of each `c6i.large` is intentionally idle, since AWS offers
+  no 1-vCPU non-burstable instance type. Full reasoning:
+  [INFRASTRUCTURE.md](./INFRASTRUCTURE.md#instance-type-choice-why-not-burstable).
+  If the paper reports data collected before this change, it must say so — the
+  two configurations are not comparable.
+
+### Equal capacity, not just equal cores
+
+Matching vCPU is not enough on its own. EC2 serves with one container and ECS
+with one task, while Lambda scales horizontally by default: at 50 req/s with
+half-second responses it would run ~25 sandboxes and hold ~25x the aggregate
+CPU of the other two. That difference is elasticity, not the compute model.
+
+`lambda_reserved_concurrency = 1` caps each function at one concurrent
+execution, so every platform serves with exactly one 1-vCPU worker and the
+measurement isolates per-request cost. Set it to `-1` to remove the cap and
+measure elasticity instead; `make validate-fairness` reports which mode is
+active and fails if the deployed cap does not match `terraform.tfvars`.
+
+Two consequences must be stated in the paper:
+
+- **Lambda rejects, it does not queue.** Synchronous invocations beyond the
+  reserved concurrency return HTTP 429 immediately, whereas EC2 and ECS queue
+  and degrade. Above saturation, Lambda's latency therefore looks *better*
+  because only served requests are timed, while its error rate rises sharply.
+  Report latency and error rate together, or the comparison misleads.
+- **Autoscaling is excluded by design.** This is the defensible answer to a
+  reviewer who objects that Lambda was handicapped: the experiment measures
+  per-request cost of the compute model, and elasticity is a separate dimension
+  the design deliberately holds constant.
+
+### Load phases must stay near or below saturation
+
+One worker at 1 vCPU has a hard throughput ceiling of roughly
+`1 / mean_service_time`. Using the duration estimates in
+[COSTS.md](./COSTS.md), the committed phase schedule oversaturates every suite:
+
+| Suite | Est. service time | Ceiling at 1 worker | Committed peak |
+|-------|------------------|---------------------|----------------|
+| anilove | ~45 ms | ~22 req/s | 50 req/s |
+| csv-processor | ~175 ms | ~5.7 req/s | 28 req/s |
+| thumbnail-generator | ~290 ms | ~3.4 req/s | 12 req/s |
+
+Run entirely above the ceiling and the result is queueing on EC2/ECS versus
+rejection on Lambda, not per-request cost. Before the measurement runs, do one
+short pilot to obtain real service times from
+`app_total_execution_time_seconds`, then set the steady phase to roughly 60-70%
+of the measured ceiling and let only the stress phase cross it. That gives one
+regime for the latency comparison and one for the saturation comparison.
+
+Thread usage is additionally pinned inside the applications:
 `OMP_NUM_THREADS=OPENBLAS_NUM_THREADS=1` for csv-processor and
-`sharp.concurrency(1)` for thumbnail-generator. Removing either invalidates the
-comparison; `make validate-fairness` checks that they are present.
+`sharp.concurrency(1)` for thumbnail-generator. `make validate-fairness`
+checks that these are present, and `make validate-tf` checks the vCPU budgets
+match across platforms.
 
 The three platforms are loaded **concurrently**, in one shared time window, so
 that external conditions are common to all of them. This trades isolation for
@@ -135,8 +201,32 @@ make artillery-anilove    # EC2 + ECS + Lambda in parallel
 make ecs-down             # or make destroy
 ```
 
-A full session costs roughly US$ 3 and takes about 8 hours including setup and
+A full session costs roughly US$ 7 and takes about 8 hours including setup and
 teardown. See [COSTS.md](./COSTS.md).
+
+### How many repetitions
+
+**Five per configuration; three is the defensible floor.** At ~US$ 7 per
+session that is about US$ 37 for the whole study.
+
+Run each repetition on **freshly provisioned instances** (`make destroy` then
+`make apply`), not back to back on the same stack. This also gives every
+repetition fresh Lambda containers, so each one contributes new cold-start
+samples — the metric that benefits most from repetition, since its *n* is the
+number of cold containers rather than the number of requests.
+
+Aggregate as **median and min-max across runs, not mean and standard
+deviation**: latency distributions are right-skewed and normality cannot be
+demonstrated at n=5. Compute the per-run statistic first, then aggregate. The
+median across five runs of each run's P95 is a valid quantity; the mean of five
+P95 values is not, and captions should say which was used.
+
+Present it as: bars at the median with whiskers at min-max for the latency
+figures, one representative run for the phase time series (averaging across
+runs smears the phase boundaries), and median [min, max] per cell in the
+results table. If a statistical claim is needed, Kruskal-Wallis across the
+three platforms using per-run medians as observations is appropriate at this
+sample size.
 
 The repository ships with Artillery targets set to `https://REPLACE_ME` and
 with empty Prometheus scrape targets for the csv and thumbnail suites.
@@ -156,9 +246,10 @@ with empty Prometheus scrape targets for the csv and thumbnail suites.
   `requirements.txt`. Base images are floating tags. Record the resolved
   versions at run time with
   `docker run --rm <image> npm ls --omit=dev --depth=0`.
-- **Burstable instances.** `t2.micro` and `t3.small` run on CPU credits.
-  Credit depletion during the stress phase is a real effect, but the results
-  do not describe dedicated-capacity instances.
+- **Half of each host is idle.** `c6i.large` has 2 vCPUs and the container is
+  capped at 1, because no 1-vCPU non-burstable type exists. Results therefore
+  describe an application confined to one vCPU on an otherwise unloaded host,
+  not a fully packed instance.
 - **One region, and however many repetitions were performed.** All numbers come
   from ap-northeast-1. A single run per configuration supports no claim about
   variance.
