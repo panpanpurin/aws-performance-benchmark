@@ -105,7 +105,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "round(\r\n  max by (instance) (\r\n    max_over_time(app_ram_usage_mb[5m])\r\n  ),\r\n  0.01\r\n)",
+          "expr": "round(\n  max by (instance) (\n    max_over_time(app_ram_peak_mb[5m])\n  ),\n  0.01\n)",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -291,7 +291,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "round(\r\n  clamp_max(\r\n    max by (instance) (\r\n      max_over_time(app_cpu_usage_percent[5m])\r\n    ),\r\n    100\r\n  ),\r\n  0.01\r\n)\r\n",
+          "expr": "round(\n  clamp_max(\n    max by (instance) (\n      max_over_time(app_cpu_peak_percent[5m])\n    ),\n    100\n  ),\n  0.01\n)\n",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -756,7 +756,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "avg by (service) (\r\n  artillery_rates{metric=\"http_request_rate\"}\r\n) * 1000\r\n",
+          "expr": "avg by (service) (\n  artillery_rates{metric=\"http_request_rate\"}\n)\n",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -1314,7 +1314,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "100 * (\r\n  1 - (\r\n    sum(artillery_summaries{metric=\"http_response_time_2xx_count\"}) by (service)\r\n    /\r\n    sum(artillery_summaries{metric=\"http_response_time_count\"}) by (service)\r\n  )\r\n)\r\n\r\n\r\n",
+          "expr": "100 * (\n  sum(artillery_counters{metric=~\"http_codes_5..\"}) by (service)\n  /\n  clamp_min(sum(artillery_summaries{metric=\"http_response_time_count\"}) by (service), 1)\n)\n",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -1592,7 +1592,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "1000 *\r\nsum by (instance) (rate(node_cpu_seconds_total{mode!=\"idle\"}[5m])) \r\n/\r\nsum by (instance) (rate(node_cpu_seconds_total[5m]))\r\n\r\n",
+          "expr": "100 * (\n  1 -\n  sum by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m]))\n  /\n  sum by (instance) (rate(node_cpu_seconds_total[5m]))\n)\n",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -1691,7 +1691,7 @@
           "refId": "A"
         }
       ],
-      "title": "Taxa de falhas por invocação (%)",
+      "title": "Taxa de erro total (não-2xx) (%)",
       "type": "timeseries"
     },
     {
@@ -1871,7 +1871,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "100 * (1 - (\r\n  sum(artillery_summaries{metric=\"http_response_time_2xx_count\"}) by (service)\r\n  /\r\n  sum(artillery_summaries{metric=\"http_response_time_count\"}) by (service)\r\n))\r\n\r\n",
+          "expr": "100 * (\n  sum(artillery_counters{metric=~\"http_codes_4..\"}) by (service)\n  /\n  clamp_min(sum(artillery_summaries{metric=\"http_response_time_count\"}) by (service), 1)\n)\n",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"

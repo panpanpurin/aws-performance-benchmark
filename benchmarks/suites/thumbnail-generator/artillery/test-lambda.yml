@@ -1,6 +1,6 @@
 # Lambda Function URL (synced from terraform outputs)
 config:
-  target: "https://2ljzjcbzagnb5johnlhaicf6ze0qqqau.lambda-url.ap-northeast-1.on.aws"
+  target: "https://REPLACE_ME"
   processor: "./upload-image.js"
   phases:
     # Phase 1 - Warm-up

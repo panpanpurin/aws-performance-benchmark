@@ -33,8 +33,10 @@ done
 
 load_project_config
 
-# The contract in CLAUDE.md: identical names across all apps and platforms so
-# one dashboard can split series by the `instance` label.
+# Metric names are identical across all apps and platforms so that one Grafana
+# dashboard can split series by the `instance` label (ec2/ecs/lambda). See
+# apps/anilove/src/metrics.js for the reference implementation and
+# docs/WORKLOADS.md for what each metric measures.
 SHARED_METRICS=(
   app_total_execution_time_seconds
   app_internal_processing_time_seconds

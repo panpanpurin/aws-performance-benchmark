@@ -1,6 +1,6 @@
 # ALB + Host header (synced from terraform outputs)
 config:
-  target: "http://aws-perf-bench-apps-1451786047.ap-northeast-1.elb.amazonaws.com"
+  target: "https://REPLACE_ME"
   processor: "./upload-image.js"
   phases:
     # Phase 1 - Warm-up

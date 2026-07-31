@@ -19,6 +19,7 @@
 | [WORKLOADS.md](./WORKLOADS.md) | CPU, memory, and I/O profile of each app |
 | [PARALLEL-BENCHMARK.md](./PARALLEL-BENCHMARK.md) | Parallel Artillery (EC2 + ECS + Lambda) |
 | [COSTS.md](./COSTS.md) | Tokyo price estimate, per-run cost, cost allocation tags |
+| [PAPER-SSCAD-2026.md](./PAPER-SSCAD-2026.md) | Companion to the SSCAD-WIC 2026 paper: metrics, queries, reproduction, limitations |
 
 ## Elsewhere
 

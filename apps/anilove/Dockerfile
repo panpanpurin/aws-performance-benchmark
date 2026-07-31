@@ -1,10 +1,17 @@
 # EC2 / ECS / local image
-FROM node:22-alpine
+# node:22-slim (Debian, glibc) rather than -alpine (musl): the Lambda base
+# image is glibc-based, and native modules such as sharp and bcrypt ship
+# different prebuilt binaries per C library. Matching libc keeps the compute
+# model the only difference between platforms.
+FROM node:22-slim
 
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install --only=production
+# --omit=dev replaces the deprecated --only=production flag.
+# No package-lock.json is committed, so dependency versions resolve at build
+# time and can differ between builds. See docs/PAPER-SSCAD-2026.md.
+RUN npm install --omit=dev
 
 COPY . .
 

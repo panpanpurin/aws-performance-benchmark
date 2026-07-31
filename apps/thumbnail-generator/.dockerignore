@@ -10,3 +10,6 @@ npm-debug.log*
 Dockerfile
 Dockerfile.lambda
 .dockerignore
+# Excluded so a stray local lockfile cannot make a local build differ from a
+# build made from a fresh clone, which has no lockfile.
+package-lock.json

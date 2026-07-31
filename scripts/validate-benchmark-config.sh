@@ -136,7 +136,9 @@ for suite in "${SUITES[@]}"; do
   if [[ -n "$alb_ec2" && -n "$alb_ecs" && "$alb_ec2" != "$alb_ecs" ]]; then
     fail "EC2 and ECS point at different ALBs ($alb_ec2 vs $alb_ecs) - only the Host header should differ"
   fi
-  if [[ -n "$lam_url" && "$lam_url" != *lambda-url* ]]; then
+  # Only meaningful once the placeholder has been replaced; an unfilled target
+  # is already reported above.
+  if [[ -n "$lam_url" && "$lam_url" != *REPLACE_ME* && "$lam_url" != *lambda-url* ]]; then
     fail "test-lambda.yml target is not a Function URL: $lam_url"
   fi
 

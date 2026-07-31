@@ -4,7 +4,10 @@ FROM public.ecr.aws/lambda/nodejs:22-x86_64
 WORKDIR /var/task
 
 COPY package*.json ./
-RUN npm install --only=production
+# --omit=dev replaces the deprecated --only=production flag.
+# No package-lock.json is committed, so dependency versions resolve at build
+# time and can differ between builds. See docs/PAPER-SSCAD-2026.md.
+RUN npm install --omit=dev
 
 COPY . .
 
