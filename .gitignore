@@ -10,15 +10,13 @@ secrets.json
 secrets.yaml
 
 # Terraform local state and vars (module source under terraform/modules/ is tracked)
+
+*.tfstate
+*.tfstate.*
+.terraform/
 terraform/terraform.tfvars
 terraform/*.auto.tfvars
-terraform/.terraform/
-terraform/*.tfstate
-terraform/*.tfstate.*
 terraform/generated/
-terraform/bootstrap/.terraform/
-terraform/bootstrap/*.tfstate
-terraform/bootstrap/*.tfstate.*
 
 # Node / npm
 node_modules/
@@ -87,6 +85,10 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
+
+# Agent / assistant local context
+CLAUDE.md
+.claude/settings.local.json
 
 # Editors
 .idea/
