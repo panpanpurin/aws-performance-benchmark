@@ -86,6 +86,9 @@ ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
 
+# Paper SSCAD-WIC
+paper/
+
 # Agent / assistant local context
 CLAUDE.md
 .claude/settings.local.json
