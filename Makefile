@@ -17,6 +17,7 @@ BASH := $(if $(GIT_BASH),$(GIT_BASH),bash)
 
 .PHONY: help check \
 	validate validate-tf validate-bench validate-fairness validate-aws \
+	validate-teardown \
 	local-up local-down local-ps local-logs local-rebuild \
 	local-test local-test-anilove local-test-csv local-test-thumbnail \
 	bench-anilove bench-csv bench-thumbnail \
@@ -86,6 +87,9 @@ validate-aws:
 
 validate-fairness:
 	$(BASH) scripts/validate-fairness.sh
+
+validate-teardown:
+	$(BASH) scripts/validate-teardown.sh
 
 health:
 	$(BASH) scripts/health-check.sh

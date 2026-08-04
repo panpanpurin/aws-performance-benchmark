@@ -43,9 +43,14 @@ Instance sizes stay on the current defaults (burstable) until the stack is fully
 | `make plan` | `terraform plan` |
 | `make apply` | `terraform apply` (interactive confirm) |
 | `make destroy` | Destroy **main stack** with `-auto-approve` |
+| `make validate-teardown` | Verify against AWS that nothing billable survived |
 | `make output` | `terraform output` |
 
 `make destroy` removes VPC, ALB, RDS, compute, etc. It does **not** delete the state backend (`terraform/bootstrap` S3 + DynamoDB). Re-apply with `make apply` when you need the stack again.
+
+Run `make ecs-down` first — the capacity provider otherwise replaces instances while the teardown is removing them — and `make validate-teardown` afterwards. A successful `terraform destroy` proves the state is clean, not the account: resources created outside the stack, dropped from state, or left by a partial destroy keep billing invisibly. The validator asks AWS directly and exits non-zero while anything under the project prefix is still running.
+
+The teardown keeps nothing: `force_destroy` on the load generator's S3 bucket (**download results first — `make loadgen-sync`**), `skip_final_snapshot` on RDS, a zero-day recovery window on secrets, and `force_delete` on the ECR repositories, so the next session needs `make push-images` again.
 
 ## Apply order
 

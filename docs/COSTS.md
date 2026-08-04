@@ -143,6 +143,49 @@ After `make destroy`, only the bootstrap state backend survives, well under
 $0.50/month. `make destroy` also removes the ECR repositories, so the next
 session needs `make push-images` again.
 
+## Tearing down, and checking that it worked
+
+```bash
+make ecs-down            # scale ECS to zero first; the ASG otherwise fights the teardown
+make destroy             # removes the whole stack, -auto-approve
+make validate-teardown   # confirms it against AWS
+```
+
+`terraform destroy` reporting success only means the **state** is clean. A
+resource created outside the stack, one removed from state, or a destroy that
+failed halfway all keep billing while `terraform state list` looks empty.
+`make validate-teardown` queries AWS directly for anything under the
+`aws-perf-bench` prefix and exits non-zero while something billable is still
+running:
+
+```
+=== compute ===
+OK   EC2 instances: none
+OK   Auto Scaling groups: none
+OK   ECS clusters: none
+OK   Lambda functions: none
+=== network and storage ===
+OK   Load balancers: none
+OK   NAT gateways: none
+OK   Elastic IPs: none
+OK   RDS instances: none
+OK   EBS volumes: none
+```
+
+The NAT gateway and Elastic IPs are the ones worth confirming by eye: they bill
+hourly with nothing running on them, and are easy to leave behind.
+
+**Download your results before destroying.** The load generator's S3 bucket is
+declared with `force_destroy`, so the teardown empties and deletes it without
+prompting, and every Artillery report still only in S3 goes with it. `make
+loadgen-sync` pulls them down; `make validate-teardown` warns while the bucket
+still holds objects, which is why it is worth running *before* the destroy as
+well as after.
+
+Nothing else is retained either: RDS uses `skip_final_snapshot`, the secrets
+module uses a zero-day recovery window, and ECR repositories are `force_delete`.
+A teardown is complete, not a pause.
+
 ## Lambda's marginal cost
 
 Request volume comes from the Artillery phase definitions in

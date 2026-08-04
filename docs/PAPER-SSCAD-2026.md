@@ -593,7 +593,9 @@ make bench-anilove        # Prometheus + Grafana; also bench-csv, bench-thumbnai
 make metrics-proxy        # required for anilove, leave running
 make validate-bench       # config check before a 30+ minute run
 make artillery-anilove    # EC2 + ECS + Lambda in parallel
+make loadgen-sync         # pull the reports down - destroy deletes the bucket
 make ecs-down             # or make destroy
+make validate-teardown    # confirm nothing billable survived
 ```
 
 A full session costs roughly US$ 7 and takes about 8 hours including setup and
@@ -650,6 +652,13 @@ Run each repetition on **freshly provisioned instances** (`make destroy` then
 repetition fresh Lambda containers, so each one contributes new cold-start
 samples — the metric that benefits most from repetition, since its *n* is the
 number of cold containers rather than the number of requests.
+
+Two things that cycle will bite. The load generator's S3 bucket has
+`force_destroy`, so **each destroy deletes the previous repetition's reports**:
+run `make loadgen-sync` before tearing down, and `make validate-teardown`, which
+refuses to pass quietly while the bucket still holds objects. And a destroy that
+half-fails leaves instances billing while `terraform state list` looks clean, so
+confirm each teardown against AWS rather than against state.
 
 Aggregate as **median and min-max across runs, not mean and standard
 deviation**: latency distributions are right-skewed and normality cannot be
