@@ -1,13 +1,13 @@
 # AWS Lambda container image
-FROM public.ecr.aws/lambda/nodejs:22-x86_64
+# Pinned by digest: AWS republishes the lambda base tags, and sharp ships
+# prebuilt native binaries.
+FROM public.ecr.aws/lambda/nodejs:22-x86_64@sha256:b37cb622465c78a7961b203f2d2e4e62aba9a8a604537547ed69d108e562ed85
 
 WORKDIR /var/task
 
 COPY package*.json ./
-# --omit=dev replaces the deprecated --only=production flag.
-# No package-lock.json is committed, so dependency versions resolve at build
-# time and can differ between builds. See docs/PAPER-SSCAD-2026.md.
-RUN npm install --omit=dev
+# npm ci: same sharp version as the EC2/ECS image.
+RUN npm ci --omit=dev
 
 COPY . .
 

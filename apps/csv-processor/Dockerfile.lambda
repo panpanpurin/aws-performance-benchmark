@@ -1,5 +1,7 @@
 # AWS Lambda container image
-FROM public.ecr.aws/lambda/python:3.12-x86_64
+# Pinned by digest: AWS republishes the lambda base tags, and this image supplies
+# the BLAS pandas computes against.
+FROM public.ecr.aws/lambda/python:3.12-x86_64@sha256:ec6a76e824a7d8f00d98e6ae9a68a3937d0c004d3fa5f49432de1c4c289592cc
 
 ENV OMP_NUM_THREADS=1 \
     OPENBLAS_NUM_THREADS=1

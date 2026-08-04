@@ -3,15 +3,16 @@
 # image is glibc-based, and native modules such as sharp and bcrypt ship
 # different prebuilt binaries per C library. Matching libc keeps the compute
 # model the only difference between platforms.
-FROM node:22-slim
+# Pinned by digest: node:22-slim is a moving tag. Resolve a new one with
+#   docker buildx imagetools inspect node:22-slim --format '{{.Manifest.Digest}}'
+FROM node:22-slim@sha256:f32b81066cde10a75dbac96646099533316d94bac4150c55da1636e1f0ffdc46
 
 WORKDIR /app
 
 COPY package*.json ./
-# --omit=dev replaces the deprecated --only=production flag.
-# No package-lock.json is committed, so dependency versions resolve at build
-# time and can differ between builds. See docs/PAPER-SSCAD-2026.md.
-RUN npm install --omit=dev
+# npm ci: installs exactly the locked tree and fails if it disagrees with
+# package.json. --omit=dev replaces the deprecated --only=production.
+RUN npm ci --omit=dev
 
 COPY . .
 
