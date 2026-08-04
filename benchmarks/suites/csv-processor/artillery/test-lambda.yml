@@ -10,38 +10,44 @@ config:
   # Every platform serves with exactly one 1-vCPU worker.
   # ============================================================
   phases:
-  # Measured service time, 2026-08-04: EC2 14.39 ms, ECS 15.02 ms,
-  # Lambda 22.73 ms -> ceilings 69 / 67 / 44 req/s. Lambda binds.
+  # Measured 2026-08-04. Service time and resulting ceiling for one worker:
+  #   EC2 14.4 ms -> 69 req/s   ECS 15.0 ms -> 67 req/s
+  #   Lambda 35.8 ms -> 28 req/s   <- binding, and measured by CloudWatch
+  #   Duration, not the in-app timer: a concurrency slot is held for the whole
+  #   invocation. The in-app 22.7 ms overstates the ceiling as 44 req/s.
   #
   # arrivalCount, not arrivalRate: arrivalRate starts N virtual users at the same
-  # instant each second, which a Lambda sandbox at concurrency 1 cannot absorb.
-  # At 12 req/s: 234 HTTP 502s with arrivalRate, 3 with arrivalCount.
+  # instant each second, which one Lambda sandbox cannot absorb. At 12 req/s:
+  # 234 HTTP 502s with arrivalRate, 3 with arrivalCount.
   #
-  # No phase crosses a ceiling. Saturation is Experiment B, run per platform.
+  # Observed throttling at reserved concurrency 1: none at 5 or 10 req/s, ~15% at
+  # 20 (71% utilisation), ~50% at 30 (above capacity). The primary rate sits at
+  # half of Lambda's ceiling so its latency is not measured over survivors only.
+  #
   # One request per arrival, so arrivals == requests.
 
     # Warm-up at the primary rate. Warming lower leaves a step change whose
     # transient falls inside the reported window. Discarded.
     - duration: 180
-      arrivalCount: 3600
+      arrivalCount: 2520
 
-    # Probe, 5 req/s (7% EC2/ECS, 11% Lambda) - shapes the latency-vs-load curve.
+    # Probe, 4 req/s - 14% of Lambda's ceiling, 6% of EC2/ECS.
     - duration: 240
-      arrivalCount: 1200
+      arrivalCount: 960
 
-    # Probe, 10 req/s (14% / 23%).
+    # Probe, 8 req/s - 29% / 12%.
     - duration: 240
-      arrivalCount: 2400
+      arrivalCount: 1920
 
-    # Primary operating point, 20 req/s (29% / 45%). Source of every reported
-    # latency figure; 14400 requests so the P99 has ~144 tail samples.
+    # Primary operating point, 14 req/s - 50% of Lambda's ceiling, 20% of
+    # EC2/ECS. Source of every reported latency figure; ~10000 requests.
     - duration: 720
-      arrivalCount: 14400
+      arrivalCount: 10080
 
-    # Probe, 30 req/s (43% / 68%). Closest approach to Lambda's ceiling; any
-    # throttling here is a result, not a misconfiguration.
+    # Probe, 20 req/s - 71% of Lambda's ceiling. Closest approach to the knee.
+    # Throttling here is a result, not a misconfiguration; report it.
     - duration: 240
-      arrivalCount: 7200
+      arrivalCount: 4800
 
   defaults:
     headers:

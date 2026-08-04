@@ -11,7 +11,7 @@ compute model is the only intended difference.
 | Workload | Bottleneck | Stack |
 |----------|-----------|-------|
 | `anilove` | I/O-bound (PostgreSQL) | Express 5, Sequelize |
-| `csv-processor` | CPU and memory (pandas) | FastAPI, pandas |
+| `csv-processor` | CPU (pandas), see the note below | FastAPI, pandas |
 | `thumbnail-generator` | CPU-bound media | Express 5, Sharp |
 
 ## Experimental setup
@@ -23,9 +23,9 @@ compute model is the only intended difference.
 | ECS on EC2 | `c6i.large` hosts; task 1024 CPU units (1 vCPU) / 1024 MB |
 | Lambda | 1769 MB (one full vCPU), 1024 MB ephemeral, 30 s timeout, container image, **reserved concurrency 1** |
 | Database | one `db.m6g.large` PostgreSQL 17.6, Single-AZ, shared by all platforms |
-| Load generator | Artillery 2.0.23, five phases, ~32 min per run |
-| Arrivals per run | 43,800 (anilove), 38,880 (csv), 13,740 (thumbnail) |
-| HTTP requests per run | **219,000** (anilove — 5 per arrival), 38,880 (csv), 13,740 (thumbnail) |
+| Load generator | Artillery 2.0.23, in-region; five phases, ~27 min per csv run |
+| Arrivals per run | 43,800 (anilove, estimated), **20,280 (csv, measured phases)**, 13,740 (thumbnail, estimated) |
+| HTTP requests per run | **219,000** (anilove — 5 per arrival), 20,280 (csv), 13,740 (thumbnail) |
 
 **Every platform gets one vCPU and 1 GB**, enforced three different ways: the
 ECS task definition caps CPU units and memory, the EC2 `docker run` is given
@@ -70,8 +70,8 @@ Two consequences must be stated in the paper:
   rises sharply. Report latency and error rate together, or the comparison
   misleads.
 
-  Measured, 2026-08-03, csv-processor at **2 req/s** — about 5% of Lambda's
-  ~43 req/s ceiling: 780 requests produced 621 × 200 and **159 × HTTP 502**,
+  Measured, 2026-08-03, csv-processor at **2 req/s** — about 7% of Lambda's
+  28 req/s ceiling: 780 requests produced 621 × 200 and **159 × HTTP 502**,
   and CloudWatch confirmed **156 throttles and 0 errors**. EC2 and ECS served
   the identical arrival pattern with zero failures.
 
@@ -82,11 +82,12 @@ Two consequences must be stated in the paper:
   sandbox at reserved concurrency 1 has nowhere to put it.
 
   Two consequences for the phase schedule. First, `ceiling = 1/service_time`
-  assumes smooth arrivals and therefore describes EC2 and ECS well and Lambda
-  badly - Lambda's usable rate is set by burst size, not mean utilisation.
-  Second, any run at matched arrival rates will attribute to Lambda a failure
-  rate that is a property of the queueing model, not of the compute model. State
-  which is being measured.
+  assumes smooth arrivals, so with `arrivalRate` it describes EC2 and ECS well
+  and Lambda badly. Using `arrivalCount` removes the burst and the ceiling
+  becomes predictive again, provided it is computed from CloudWatch `Duration`
+  rather than the in-app timer. Second, any run at matched arrival rates will
+  attribute to Lambda a failure rate that is a property of the queueing model,
+  not of the compute model. State which is being measured.
 
 - **A throttled Lambda behind the ALB returns 502, not 429.** The ALB converts
   the throttle rather than passing the status through. Filtering results on 429
@@ -188,24 +189,27 @@ those the two coincide. Getting this wrong understates AniLove's real load by
 csv-processor pilot (2026-08-03) measured mean server-side service time of
 **15.51 ms on EC2, 15.54 ms on ECS and 23.44 ms on Lambda** — roughly 11x faster
 than the 175 ms assumed above. The real ceiling is therefore ~64 req/s on EC2 and
-ECS and **~43 req/s on Lambda, which binds**, not 5.7 req/s.
+ECS and **28 req/s on Lambda, which binds**, not 5.7 req/s. The Lambda figure
+comes from CloudWatch `Duration`; the in-app timer overstates it as 44 req/s.
 
 The consequence inverts the concern for that suite: its committed peak of 28
 req/s was **65% of the ceiling, not 4.9x over it**, so the schedule never reached
 saturation at all and would have produced no saturation regime to report. Its
 phases are now derived from the measurement:
 
-Ceilings re-measured with smoothed arrivals: **EC2 69 req/s, ECS 67, Lambda 44**
-(mean service time 14.39 / 15.02 / 22.73 ms). Lambda binds. The committed
+Ceilings re-measured with smoothed arrivals: **EC2 69 req/s, ECS 67, Lambda 28**
+(mean service time 14.39 / 15.02 / 35.8 ms). Lambda binds. Its 35.8 ms is
+CloudWatch `Duration`, not the in-app timer's 22.73 ms, the section below
+explains why the timer is the wrong basis for a ceiling. The committed
 Experiment A schedule:
 
-| Phase | Rate | Duration | Requests | Utilisation (EC2/ECS · Lambda) |
+| Phase | Rate | Duration | Requests | Utilisation (Lambda · EC2/ECS) |
 |-------|------|----------|----------|--------------------------------|
-| Warm-up | 20 req/s | 3 min | 3,600 | discarded |
-| Probe | 5 req/s | 4 min | 1,200 | 7% · 11% |
-| Probe | 10 req/s | 4 min | 2,400 | 15% · 23% |
-| **Primary** | **20 req/s** | **12 min** | **14,400** | **29% · 45%** |
-| Probe | 30 req/s | 4 min | 7,200 | 43% · 68% |
+| Warm-up | 14 req/s | 3 min | 2,520 | 50% · 20%  (discarded) |
+| Probe | 4 req/s | 4 min | 960 | 14% · 6% |
+| Probe | 8 req/s | 4 min | 1,920 | 29% · 12% |
+| **Primary** | **14 req/s** | **12 min** | **10,080** | **50% · 20%** |
+| Probe | 20 req/s | 4 min | 4,800 | 71% · 29% |
 
 27 minutes. The shape is deliberate. The probes give latency **as a function of
 load** — how each platform responds as utilisation rises, and where its knee is
@@ -219,10 +223,11 @@ Warm-up runs **at** the primary rate rather than below it. Warming lower leaves 
 step change at the boundary and the resulting transient falls inside the window
 being reported.
 
-The 30 req/s probe sits at 68% of Lambda's ceiling, the closest any Experiment A
+The 20 req/s probe sits at 71% of Lambda's ceiling, the closest any Experiment A
 phase comes to it. If Lambda shows throttling there while EC2 and ECS do not,
 that is a result about how early the no-queue model starts to bite, not a
-configuration error — report it rather than tuning the rate down.
+configuration error — report it rather than tuning the rate down. It did; see
+the validation below.
 
 A 60 req/s stress phase was tried and removed: it put EC2 and ECS at 94% of
 their own ceiling, where they built 60-second queues and logged ~5000
@@ -231,6 +236,47 @@ platforms" below.
 
 anilove and thumbnail-generator still carry estimated rates and a warning banner
 in their `test-*.yml`. Pilot them before their numbers are used.
+
+**Validation of the schedule (csv-processor, 2026-08-04, Experiment A).** The
+schedule above was run end to end at `reserved_concurrency = 1` to check that
+the primary phase is clear of saturation. Lambda rejections by phase:
+
+| Phase | Requests | HTTP 502 | Loss |
+|-------|----------|----------|------|
+| Warm-up 14 req/s | 2,439 | 9 | 0.4% |
+| Probe 4 req/s | 1,018 | 0 | 0% |
+| Probe 8 req/s | 1,897 | 0 | 0% |
+| **Primary 14 req/s** | **10,045** | **33** | **0.3%** |
+| Probe 20 req/s | 4,766 | 452 | 9.5% |
+
+EC2 and ECS returned 20,280 of 20,280 across the whole run. Two things follow.
+The primary phase loses 0.3%, so Lambda's headline latency is measured over
+99.7% of its requests and carries no survivorship caveat — the earlier 20 req/s
+primary lost around 15%, which would have qualified every Lambda row. And the
+knee is visible: at 71% utilisation loss rises to 9.5%, which is the reportable
+finding about the no-queue model rather than a defect.
+
+The same schedule was then run uncapped (Experiment B, run `20260804-151525`).
+The difference between the two is attributable to the concurrency limit alone,
+because the arrival schedule is identical:
+
+| Phase | Capped loss | Uncapped loss |
+|-------|-------------|---------------|
+| Warm-up 14 req/s | 0.4% | **0%** |
+| Probe 4 req/s | 0% | 0% |
+| Probe 8 req/s | 0% | 0% |
+| Primary 14 req/s | 0.3% | **0%** |
+| Probe 20 req/s | 9.5% | **0%** |
+
+Uncapped Lambda served **20,280 of 20,280** with zero 502s and, per CloudWatch,
+zero throttles in every five-minute bucket of the run — against 508 throttles
+capped. It did so at a peak concurrency of **3**, which is the whole finding:
+the 9.5% lost at 20 req/s was not a capacity limit but the absence of a queue,
+and two extra sandboxes erase it.
+
+Client-side latency barely moves between the two: mean 59.1 ms capped against
+61.4 ms uncapped, P99 85.6 against 87.4. Elasticity buys availability here, not
+speed, because no phase approached the per-sandbox service rate.
 
 Run entirely above the ceiling and the result is queueing on EC2/ECS versus
 rejection on Lambda, not per-request cost. The committed schedules still carry
@@ -287,54 +333,47 @@ strict equal capacity *and* a clean latency comparison - no handicap to explain
 to a reviewer, and no double-digit error rate contaminating the headline table.
 All `test-*.yml` and `pilot-*.yml` phases use `arrivalCount`.
 
-### Smoothing within a stream does not remove coincidence between streams
+### Lambda's ceiling comes from CloudWatch Duration, not the in-app timer
 
-`arrivalCount` fixes burstiness *inside* one Artillery process. It does not
-coordinate across processes, and the three platforms are loaded concurrently by
-design so that they share a time window. Each schedules its own arrivals
-independently, so arrivals still coincide at the shared ALB — and a Lambda
-sandbox at reserved concurrency 1 has no queue to absorb the overlap.
+A Lambda concurrency slot is held for the whole invocation, including runtime
+overhead outside the handler. The in-app timer measures only the handler, so a
+ceiling derived from it is optimistic:
 
-Measured on the first full Experiment A run (2026-08-04, capped, smoothed
-arrivals, all three suites concurrent, rates of only 5-20 req/s):
+| Source | csv-processor mean | Implied ceiling |
+|--------|--------------------|-----------------|
+| `app_total_execution_time_seconds` | 22.7 ms | 44 req/s |
+| **CloudWatch `Duration`** | **35.8 ms** | **28 req/s** |
 
-| | |
-|---|---|
-| Invocations | 4,306 |
-| **Throttles** | **800 (~16%)** |
-| Errors | 0 |
-| Peak concurrency | 1 |
+Measured throttling at reserved concurrency 1, smoothed arrivals, matches the
+CloudWatch figure and not the in-app one:
 
-EC2 and ECS served ~5,300 requests over the same window while Lambda served
-~1,400. Both container platforms held exactly 20.00 req/s in the primary phase.
+| Rate | Utilisation vs 28 req/s | Loss |
+|------|-------------------------|------|
+| 5 req/s | 18% | 0% |
+| 10 req/s | 36% | 0% |
+| 20 req/s | 71% | 9.5-15% |
+| 30 req/s | 107% | ~50% |
 
-This is not a configuration fault and it is not fixed by lowering the rate: at
-5 req/s the inter-arrival gap is 200 ms against a 23 ms service time, so the
-mean utilisation is about 11%. The rejections come from *coincidence*, not
-utilisation. It is the same property the paper already identifies — Lambda
-rejects where a container queues — but it appears at a far lower load than the
-ceiling arithmetic suggests, and it appears because three independent load
-streams share one target.
+The 20 req/s figure spans two runs: 9.5% over a 4-minute probe and ~15% over a
+12-minute phase, the longer exposure accumulating more overlaps.
 
-**Reported as a finding, not engineered away.** At genuinely equal provisioned
-capacity, a socket backlog absorbs arrival coincidence for free and a single
-Lambda sandbox cannot. Quote Lambda's latency alongside its throttle rate at
-every phase, and state that the throttles are a property of the queueing model
-rather than of per-request compute cost. Two alternatives were considered and
-rejected: giving Lambda a concurrency budget of 2-3 as a "queue equivalent"
-(departs from equal capacity, and the choice of 2 versus 3 would be arbitrary),
-and staggering the three platforms in time (sacrifices the shared time window,
-which is what makes external conditions common to all three).
+At 71% utilisation ordinary arrival jitter is enough to produce overlaps, and a
+sandbox at concurrency 1 rejects rather than queues. Above 100% the loss is
+arithmetic. EC2 and ECS are unaffected either way, because they queue - their
+ceiling can be taken from either measure.
 
-A caveat on how this was missed: the `arrivalCount` validation above ran Lambda
-**alone**, which isolated the variable under test and therefore could not
-observe cross-stream coincidence. A validation that isolates one factor cannot
-speak to interactions with the others.
+The primary operating point is therefore set at half of Lambda's CloudWatch
+ceiling, so its latency is not measured over surviving requests only.
+
+An earlier revision of this document attributed the same throttling to
+coincidence between the three concurrent load streams. That was incorrect: the
+three suites address different ALB target groups and do not contend. The cause
+is per-stream utilisation against a ceiling that had been overstated.
 
 ### One rate cannot saturate three platforms
 
-Measured ceilings differ by 57%: EC2 69 req/s, ECS 67, Lambda 44. A shared
-stress rate therefore lands somewhere different on each. At 60 req/s EC2 and ECS
+Measured ceilings differ by a factor of 2.5: EC2 69 req/s, ECS 67, Lambda 28. A
+shared stress rate therefore lands somewhere different on each. At 60 req/s EC2 and ECS
 sat at 94% of their own ceiling and built 60-second queues, logging ~5000
 `ETIMEDOUT` apiece, while Lambda shed 69% of requests. That measures the
 queueing model, not the compute model.
@@ -410,6 +449,14 @@ Reference implementation: `apps/anilove/src/metrics.js`.
 | `artillery_rates{metric="http_request_rate"}` | Throughput, client-side |
 | `artillery_summaries` 2xx ratio | Error rate, client-side |
 
+**What the timer covers.** app_total_execution_time_seconds starts inside the
+handler, after the framework has buffered the request body, and stops when the
+handler returns. Upload and download time are therefore excluded, which keeps
+the client network path out of the platform comparison - the 533 KB csv upload
+contributes generator bandwidth but not measured time. Client-side latency from
+the Artillery report includes it, which is why the two differ by roughly the
+round trip.
+
 The difference between the first two is time waiting on the database. AniLove
 tracks it with `AsyncLocalStorage` fed by Sequelize's `benchmark` logger, which
 is what separates platform overhead from application work.
@@ -460,6 +507,32 @@ avg by (service) (artillery_rates{metric="http_request_rate"})
   / sum by (service) (artillery_summaries{metric="http_response_time_count"})
 )
 ```
+
+### Lambda's app_* series is per-container, so Experiment B reads from CloudWatch
+
+Why this happens, and the threshold at which it starts, are covered under
+[Two experiments, not one](#two-experiments-not-one): the condition is the
+sandbox count, not the cap. This section records what it does to each reported
+quantity, and what to substitute.
+
+Measured during the 14 req/s primary phase of the Experiment B run, at a peak
+concurrency of 3, against a generator sending exactly 14 req/s to each platform:
+
+```promql
+rate(app_total_execution_time_seconds_count[2m])
+  ec2 14.00    ecs 14.00    lambda 232.14
+```
+
+EC2 and ECS report the arrival rate. Lambda overstates it 16x. What survives and
+what does not:
+
+| Quantity | Uncapped Lambda |
+|----------|-----------------|
+| Rate of a counter alone | **Invalid** — the 232 above |
+| Mean and quantiles (`_sum/_count`, `histogram_quantile`) | Biased: numerator and denominator move together, so the value is roughly the answering container's lifetime distribution rather than the query window |
+| CPU per request | Usable — both counters come from the same scrape of the same container, so the jumps cancel |
+| `app_ram_usage_mb`, `app_ram_peak_mb` | Usable — gauges, and per-container memory is the intended reading |
+
 
 ## Reading the results correctly
 
@@ -616,6 +689,13 @@ with empty Prometheus scrape targets for the csv and thumbnail suites.
 - **One region, and however many repetitions were performed.** All numbers come
   from ap-northeast-1. A single run per configuration supports no claim about
   variance.
+- **Lambda is measured at lower resolution than EC2 and ECS, and from a
+  different source in Experiment B.** Its application metrics come from whichever
+  sandbox answers the scrape, which is exact at concurrency 1 and not
+  fleet-representative above it, so uncapped latency is taken from CloudWatch
+  `Duration` instead. Its scrape interval is also 30 s against 5 s elsewhere,
+  because the scrape competes with the workload for a concurrency slot. See
+  [the section above](#lambdas-app_-series-is-per-container-so-experiment-b-reads-from-cloudwatch).
 - **The ALB terminates HTTP, not HTTPS.** No domain is registered, so no ACM
   certificate is issued and the listener serves plain HTTP on port 80, with the
   target groups selected by `Host` header against a `bench.local` suffix. TLS

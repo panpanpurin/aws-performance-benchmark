@@ -68,8 +68,16 @@ def process_csv(
 
         return df
 
-    except Exception as e:
+    except ValueError:
+        # Bad input: malformed CSV, unknown column, unsupported aggregation.
+        # pandas raises ParserError, which is a ValueError. 
         status = "error"
-        raise ValueError(f"Error processing CSV: {str(e)}")
+        raise
+    except Exception:
+        # Anything else is a server-side failure - MemoryError under load being
+        # the one that matters here. Re-raised unchanged so the route returns
+        # 500.
+        status = "error"
+        raise
     finally:
         observe_csv_internal_duration(time.perf_counter() - t0, status=status)

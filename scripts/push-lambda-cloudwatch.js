@@ -30,14 +30,19 @@ if (!cfg) {
   process.exit(1);
 }
 
+const modeOnly = process.argv.includes("--mode-only");
 const region = process.env.AWS_REGION || "ap-northeast-1";
 const endTs = new Date();
 const startTs = new Date(endTs.getTime() - windowSec * 1000);
 const iso = (d) => d.toISOString().replace(/\.\d{3}Z$/, "Z");
 
 // execFileSync, not a shell: MSYS rewrites the leading / of the log group name.
+// An empty stdout is a valid "no data" answer - get-function-concurrency returns
+// nothing at all when the function has no reservation - so it maps to {} rather
+// than throwing in JSON.parse.
 function aws(args) {
-  return JSON.parse(execFileSync("aws", args, { maxBuffer: 64 * 1024 * 1024 }).toString());
+  const out = execFileSync("aws", args, { maxBuffer: 64 * 1024 * 1024 }).toString().trim();
+  return out === "" ? {} : JSON.parse(out);
 }
 
 function metric(name, stats, extended) {
@@ -73,6 +78,7 @@ function metric(name, stats, extended) {
   }
 }
 
+function main() {
 const lines = [];
 const add = (s) => lines.push(s);
 
@@ -89,7 +95,20 @@ try {
 } catch (e) {
   console.error("WARN  could not read reserved concurrency: " + (e.message || e).toString().split("\n")[0]);
 }
-add(`lambda_reserved_concurrency ${reserved}`);
+
+if (modeOnly) {
+  const body = `lambda_reserved_concurrency ${reserved}
+`;
+  const p = "/metrics/job/lambda-mode/instance/lambda/service/app-instrumented-lambda/environment/production";
+  const r = http.request(
+    { host: "127.0.0.1", port: cfg.port, path: p, method: "POST",
+      headers: { "Content-Type": "text/plain", "Content-Length": Buffer.byteLength(body) } },
+    (res) => { res.resume(); console.log("OK    mode=" + reserved + " -> :" + cfg.port + " (http " + res.statusCode + ")"); }
+  );
+  r.on("error", (e) => { console.error("FAIL  " + e.message); process.exitCode = 1; });
+  r.write(body); r.end();
+  return;
+}
 
 const duration = metric("Duration", ["Average", "Maximum"], ["p95"]);
 if (duration) {
@@ -178,3 +197,5 @@ req.on("error", (e) => {
 });
 req.write(body);
 req.end();
+}
+main();

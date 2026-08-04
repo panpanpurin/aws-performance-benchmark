@@ -97,6 +97,9 @@ fi
 echo "ARTILLERY_RUN_COMPLETE $STAMP"
 EOF
 
+node scripts/push-lambda-cloudwatch.js "$SUITE" 60 --mode-only >/dev/null 2>&1 || \
+  warn "could not publish the experiment mode"
+
 cmd_id="$(aws ssm send-command \
   --region "$REGION" \
   --instance-ids "$INSTANCE" \
@@ -132,8 +135,19 @@ done
 echo "ssm status: $status"
 
 # Collect partial results on failure too.
-aws s3 cp "s3://$BUCKET/results/$SUITE/" "$OUTDIR/" --recursive \
-  --exclude "*" --include "*$STAMP*" --only-show-errors 2>/dev/null || true
+# SSM reports Success as soon as the remote script exits, which can precede the
+# S3 upload becoming listable. Retry until all six artifacts arrive (a .json and
+# a .log per platform) rather than copying once and silently getting nothing.
+EXPECTED=6
+for attempt in $(seq 1 12); do
+  aws s3 cp "s3://$BUCKET/results/$SUITE/" "$OUTDIR/" --recursive \
+    --exclude "*" --include "*$STAMP*" --only-show-errors 2>/dev/null || true
+  got=$(ls -1 "$OUTDIR" 2>/dev/null | grep -c "$STAMP" || true)
+  [[ "$got" -ge "$EXPECTED" ]] && break
+  [[ "$attempt" -eq 12 ]] && break
+  echo "waiting for results ($got/$EXPECTED downloaded, attempt $attempt)"
+  sleep 10
+done
 
 if [[ "$status" != "Success" ]]; then
   fail "run $status"
@@ -154,9 +168,13 @@ node scripts/push-artillery-report.js "$SUITE" "$STAMP" || \
 
 # Lambda comes from CloudWatch: with more than one sandbox the app_* metrics are
 # sampled from whichever one answers the scrape.
-# Scoped to this run plus 120s for delivery lag. A fixed window would mix in
-# earlier runs.
-RUN_ELAPSED=$(( $(date -u +%s) - RUN_STARTED_AT + 120 ))
+# The window is exactly this run. Padding it backwards would pull in the tail of
+# the previous run - back-to-back Experiment A/B runs otherwise inherit each
+# other's throttle counts. CloudWatch publishes a minute or two behind, so wait
+# for the last datapoints instead of widening the window to reach them.
+echo "waiting 120s for CloudWatch to publish the final datapoints"
+sleep 120
+RUN_ELAPSED=$(( $(date -u +%s) - RUN_STARTED_AT ))
 section "publishing lambda cloudwatch metrics (window ${RUN_ELAPSED}s)"
 node scripts/push-lambda-cloudwatch.js "$SUITE" "$RUN_ELAPSED" || \
   warn "could not publish Lambda CloudWatch metrics"

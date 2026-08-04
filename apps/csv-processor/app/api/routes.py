@@ -33,6 +33,9 @@ async def process(
 ):
     maybe_record_cold_start()
     begin_cpu_sample()
+    # Timed from here, after FastAPI has buffered the upload. Transfer time is
+    # therefore excluded from app_total_execution_time_seconds, which keeps the
+    # client network path out of the platform comparison.
     t0 = time.perf_counter()
     status = "success"
 
