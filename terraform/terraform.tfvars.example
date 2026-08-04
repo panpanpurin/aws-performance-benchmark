@@ -34,7 +34,16 @@ lambda_timeout_s    = 30
 # to the account limit, which measures elasticity rather than the compute model.
 lambda_reserved_concurrency = 1
 
-rds_instance_class    = "db.t4g.micro"
+# Register the functions as ALB targets so all three platforms are reached
+# through the same load balancer and the same request path. The Function URLs
+# stay published either way and remain what Prometheus scrapes for /metrics.
+lambda_behind_alb = true
+
+# Non-burstable, for the same reason as c6i.large on EC2/ECS: CPU credits carry
+# across runs, and this database is shared by all three platforms and sits in
+# the critical path of the only I/O-bound workload. Burstable classes also
+# cannot run Performance Insights, which is what backs the interference claim.
+rds_instance_class    = "db.m6g.large"
 rds_engine_version    = "17.6"
 rds_allocated_storage = 20
 rds_db_name           = "anilove"

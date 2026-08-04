@@ -108,8 +108,13 @@ variable "lambda_timeout_s" {
 
 variable "rds_instance_class" {
   type        = string
-  description = "RDS instance class."
-  default     = "db.t4g.micro"
+  description = "RDS instance class. Must be non-burstable for the same reason the EC2 and ECS hosts are: CPU credit balance carries across runs, so a burstable database would make repetitions measure a degrading system rather than repeated samples of the same one. The database is shared by all three platforms and sits in the critical path of the only I/O-bound workload, so that variance would land directly on the reported database wait. Burstable classes also cannot run Performance Insights."
+  default     = "db.m6g.large"
+
+  validation {
+    condition     = !can(regex("^db\\.t[0-9]", var.rds_instance_class))
+    error_message = "Burstable classes (db.t2/t3/t4g) make repeated runs non-comparable and cannot run Performance Insights. Use a non-burstable class such as db.m6g.large."
+  }
 }
 
 variable "rds_engine_version" {
@@ -278,6 +283,12 @@ variable "cpu_credits" {
   }
 }
 
+variable "lambda_behind_alb" {
+  type        = bool
+  description = "Register the Lambda functions as targets of the shared ALB, so all three platforms are reached through the same load balancer and the same request path. The Function URLs stay in place either way and remain the endpoint used for Prometheus scrapes."
+  default     = true
+}
+
 variable "lambda_reserved_concurrency" {
   type        = number
   description = "Max concurrent executions per Lambda function. 1 gives Lambda the same worker count as one EC2 container and one ECS task, so provisioned capacity is equal across platforms and the measurement isolates per-request cost. Set to -1 to remove the cap and measure elasticity instead."
@@ -287,4 +298,22 @@ variable "lambda_reserved_concurrency" {
     condition     = var.lambda_reserved_concurrency == -1 || var.lambda_reserved_concurrency >= 1
     error_message = "Must be -1 (uncapped) or a positive integer."
   }
+}
+
+variable "enable_loadgen" {
+  type        = bool
+  description = "Provision the in-region Artillery host. Off by default. Required for AWS runs: a workstation uplink cannot supply the load the measured phase rates ask for, and a saturated generator biases all three platforms unevenly rather than failing cleanly."
+  default     = false
+}
+
+variable "loadgen_instance_type" {
+  type        = string
+  description = "Load generator size. Must not be the bottleneck - see modules/loadgen/variables.tf."
+  default     = "c6i.xlarge"
+}
+
+variable "artillery_version" {
+  type        = string
+  description = "Artillery version installed on the load generator. Kept equal to the version benchmarks/scripts/run-parallel.sh resolves locally."
+  default     = "2.0.23"
 }

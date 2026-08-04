@@ -34,11 +34,14 @@ scale_services() {
 scale_asg() {
   local n="$1"
   echo "==> ASG $ASG desired=$n"
+  # --no-honor-cooldown: honouring it rejects the call with
+  # ScalingActivityInProgress for the whole 300 s window after any launch, which
+  # is exactly when this runs. Cooldown is for damping automatic scaling.
   aws autoscaling set-desired-capacity \
     --region "$REGION" \
     --auto-scaling-group-name "$ASG" \
     --desired-capacity "$n" \
-    --honor-cooldown
+    --no-honor-cooldown
 }
 
 show_status() {

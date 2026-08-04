@@ -41,7 +41,12 @@ if [[ -n "$IMAGE" ]]; then
   # definition (cpu 1024 = 1 vCPU, memory 1024 MB). Without them the container
   # would use the whole instance, so a host larger than the ECS task would give
   # EC2 more CPU than the other platforms and invalidate the comparison.
-  docker run -d --name "$APP" --restart unless-stopped \
+  # --no-healthcheck disables the HEALTHCHECK baked into the image. It spawns a
+  # whole node process every 10s, which on a container capped at 1 vCPU is CPU
+  # taken from the workload - and only here: ECS ignores the image HEALTHCHECK
+  # because the task definition declares none, and Lambda has no equivalent. The
+  # ALB target group is the health authority for every platform.
+  docker run -d --name "$APP" --restart unless-stopped --no-healthcheck \
     --cpus="${container_cpus}" --memory="${container_memory_mb}m" \
     -p "$PORT:$PORT" "$${ENV_ARGS[@]}" "$IMAGE"
 fi

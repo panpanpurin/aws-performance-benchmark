@@ -15,8 +15,8 @@ variable "security_group_id" {
 
 variable "instance_class" {
   type        = string
-  description = "RDS instance class."
-  default     = "db.t4g.micro"
+  description = "RDS instance class. Non-burstable, so credit balance cannot carry across runs."
+  default     = "db.m6g.large"
 }
 
 variable "engine_version" {

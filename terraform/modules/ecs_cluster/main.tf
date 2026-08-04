@@ -168,11 +168,12 @@ resource "aws_ecs_capacity_provider" "ec2" {
     auto_scaling_group_arn         = aws_autoscaling_group.ecs.arn
     managed_termination_protection = "DISABLED"
 
+    # DISABLED. Managed scaling installs a target-tracking alarm and moves desired
+    # capacity on its own, which terminates instances mid-run and drops their ECS
+    # tasks. Capacity here is fixed at one worker per platform and elasticity is
+    # out of scope; scripts/ecs-scale.sh is the only supported way to change it.
     managed_scaling {
-      status                    = "ENABLED"
-      target_capacity           = 100
-      minimum_scaling_step_size = 1
-      maximum_scaling_step_size = 2
+      status = "DISABLED"
     }
   }
 
@@ -292,6 +293,18 @@ resource "aws_ecs_service" "app" {
     weight            = 1
   }
 
+  # One task per instance, matching EC2, where each app gets a dedicated host.
+  # A c6i.large is 2048 CPU units and a task reserves 1024, so without this two
+  # apps could be co-scheduled on one host while their EC2 counterparts each
+  # keep a whole machine - a difference in host sharing rather than in the
+  # compute model.
+  #
+  # Requires as many container instances as services: scripts/ecs-scale.sh
+  # raises the ASG to 3 before scaling the services to 1.
+  placement_constraints {
+    type = "distinctInstance"
+  }
+
   network_configuration {
     subnets          = var.private_subnet_ids
     security_groups  = var.task_security_group_ids
@@ -303,6 +316,11 @@ resource "aws_ecs_service" "app" {
     container_name   = each.value.name
     container_port   = each.value.port
   }
+
+  # A task that has just started is still warming caches and JIT. Without a
+  # grace period ECS would judge it by the target group immediately and could
+  # replace it before it ever serves load.
+  health_check_grace_period_seconds = 300
 
   deployment_minimum_healthy_percent = 0
   deployment_maximum_percent         = 100

@@ -1,0 +1,46 @@
+#!/bin/bash
+set -euxo pipefail
+
+# Artillery load generator bootstrap.
+
+dnf -y update
+dnf -y install tar gzip
+
+dnf -y install nodejs20 nodejs20-npm
+alternatives --set node /usr/bin/node-20
+node -v
+
+NPM=/usr/bin/npm-20
+
+
+"$NPM" install -g artillery@${artillery_version} form-data
+
+echo "export NODE_PATH=$("$NPM" root -g)" > /etc/profile.d/nodepath.sh
+chmod 0644 /etc/profile.d/nodepath.sh
+
+mkdir -p /opt/bench
+chown ec2-user:ec2-user /opt/bench
+
+cat > /etc/profile.d/bench.sh <<EOF
+export BENCH_BUCKET=${bucket}
+export AWS_DEFAULT_REGION=${aws_region}
+export BENCH_DIR=/opt/bench
+EOF
+chmod 0644 /etc/profile.d/bench.sh
+
+# Three concurrent Artillery processes open more sockets than the default 1024.
+# Exhausting the limit produces client-side errors indistinguishable from
+# platform failures.
+cat > /etc/security/limits.d/99-loadgen.conf <<'EOF'
+*  soft  nofile  65535
+*  hard  nofile  65535
+EOF
+
+sysctl -w net.ipv4.ip_local_port_range="10000 65535"
+sysctl -w net.core.somaxconn=4096
+cat > /etc/sysctl.d/99-loadgen.conf <<'EOF'
+net.ipv4.ip_local_port_range = 10000 65535
+net.core.somaxconn = 4096
+EOF
+
+touch /opt/bench/.ready

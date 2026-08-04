@@ -142,3 +142,13 @@ output "tags" {
   description = "Default tags."
   value       = local.tags
 }
+
+output "loadgen_instance_id" {
+  value       = try(module.loadgen[0].instance_id, null)
+  description = "In-region Artillery host; target for aws ssm send-command."
+}
+
+output "loadgen_bucket" {
+  value       = try(module.loadgen[0].bucket, null)
+  description = "Where Artillery suites and result files are staged."
+}

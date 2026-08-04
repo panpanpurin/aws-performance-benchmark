@@ -37,8 +37,15 @@ variable "apps" {
     health_path = string
     host_ec2    = string
     host_ecs    = string
+    host_lambda = string
   }))
   description = "Apps for target groups and host-based rules."
+}
+
+variable "lambda_function_arns" {
+  type        = map(string)
+  description = "App key to Lambda function ARN. Empty map leaves the functions off the ALB, reachable only through their Function URLs."
+  default     = {}
 }
 
 variable "tags" {

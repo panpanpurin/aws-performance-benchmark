@@ -208,8 +208,11 @@ resource "aws_iam_role_policy_attachment" "lambda_basic" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
+# Every function runs inside the VPC, not just the one that reaches RDS, so
+# every role needs permission to manage the ENIs. Without this the function
+# cannot create its network interface and fails to initialise.
 resource "aws_iam_role_policy_attachment" "lambda_vpc" {
-  for_each = { for k, r in aws_iam_role.lambda : k => r if k == "anilove" }
+  for_each = aws_iam_role.lambda
 
   role       = each.value.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"

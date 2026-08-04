@@ -24,6 +24,16 @@ locals {
   # even without a public domain (use Host header against the ALB DNS name).
   dns_suffix = var.domain_name != "" ? var.domain_name : "bench.local"
 
+  # DNS labels are short and uniform: <label>-<platform>.<suffix>, one label per
+  # app and one per platform. They deliberately do not repeat the full app name
+  # (csv-processor, thumbnail-generator), which kept producing inconsistent
+  # hosts. All nine are covered by the single *.<domain> wildcard certificate.
+  host_label = {
+    anilove   = "anilove"
+    csv       = "csv"
+    thumbnail = "thumb"
+  }
+
   apps = {
     anilove = {
       name             = "anilove"
@@ -34,8 +44,9 @@ locals {
       db_schema_ec2    = "ec2"
       db_schema_ecs    = "ecs"
       db_schema_lambda = "lambda"
-      host_ec2         = "anilove-ec2.${local.dns_suffix}"
-      host_ecs         = "anilove-ecs.${local.dns_suffix}"
+      host_ec2         = "${local.host_label.anilove}-ec2.${local.dns_suffix}"
+      host_ecs         = "${local.host_label.anilove}-ecs.${local.dns_suffix}"
+      host_lambda      = "${local.host_label.anilove}-lambda.${local.dns_suffix}"
     }
     csv = {
       name        = "csv-processor"
@@ -43,8 +54,9 @@ locals {
       needs_rds   = false
       ecr_name    = "${var.project_name}/csv-processor"
       health_path = "/health"
-      host_ec2    = "csv-processor-ec2.${local.dns_suffix}"
-      host_ecs    = "csv-processor-ecs.${local.dns_suffix}"
+      host_ec2    = "${local.host_label.csv}-ec2.${local.dns_suffix}"
+      host_ecs    = "${local.host_label.csv}-ecs.${local.dns_suffix}"
+      host_lambda = "${local.host_label.csv}-lambda.${local.dns_suffix}"
     }
     thumbnail = {
       name        = "thumbnail-generator"
@@ -52,8 +64,9 @@ locals {
       needs_rds   = false
       ecr_name    = "${var.project_name}/thumbnail-generator"
       health_path = "/health"
-      host_ec2    = "thumbnail-generator-ec2.${local.dns_suffix}"
-      host_ecs    = "thumbnail-ecs.${local.dns_suffix}"
+      host_ec2    = "${local.host_label.thumbnail}-ec2.${local.dns_suffix}"
+      host_ecs    = "${local.host_label.thumbnail}-ecs.${local.dns_suffix}"
+      host_lambda = "${local.host_label.thumbnail}-lambda.${local.dns_suffix}"
     }
   }
 
@@ -90,8 +103,14 @@ locals {
 
   enable_https = var.domain_name != "" && var.route53_zone_id != ""
 
+  # Lambda hostnames only get a Route 53 alias when the functions are actually
+  # behind the ALB; otherwise the record would point at a listener rule that
+  # does not exist.
   public_hostnames = merge(
     { for k, a in local.apps : "${k}_ec2" => a.host_ec2 if a.host_ec2 != "" },
-    { for k, a in local.apps : "${k}_ecs" => a.host_ecs if a.host_ecs != "" }
+    { for k, a in local.apps : "${k}_ecs" => a.host_ecs if a.host_ecs != "" },
+    var.enable_lambda && var.lambda_behind_alb ? {
+      for k, a in local.apps : "${k}_lambda" => a.host_lambda if a.host_lambda != ""
+    } : {}
   )
 }

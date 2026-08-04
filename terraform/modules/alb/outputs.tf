@@ -23,6 +23,11 @@ output "ecs_target_group_arns" {
   value       = { for k, tg in aws_lb_target_group.ecs : k => tg.arn }
 }
 
+output "lambda_target_group_arns" {
+  description = "Map of app key to Lambda target group ARN. Empty when the functions are not behind the ALB."
+  value       = { for k, tg in aws_lb_target_group.lambda : k => tg.arn }
+}
+
 output "https_listener_arn" {
   description = "HTTPS listener ARN when certificate is set."
   value       = try(aws_lb_listener.https[0].arn, null)

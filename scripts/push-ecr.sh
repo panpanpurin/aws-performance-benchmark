@@ -42,16 +42,21 @@ push_one() {
   echo
   echo "==> Build ${name} (${tag}) from ${dockerfile}"
 
-  if [[ "$for_lambda" == "1" ]]; then
-    # Classic builder avoids OCI index / attestations that Lambda rejects
-    DOCKER_BUILDKIT=0 docker build --platform linux/amd64 \
-      -t "$local_ref" -f "${context}/${dockerfile}" "$context" ||
-      docker buildx build --platform linux/amd64 --provenance=false --sbom=false --load \
-        -t "$local_ref" -f "${context}/${dockerfile}" "$context"
-  else
-    docker build --platform linux/amd64 \
-      -t "$local_ref" -f "${context}/${dockerfile}" "$context"
-  fi
+  # Relative context: $ROOT is an MSYS path Docker Desktop cannot resolve, and
+  # this repo path also has a space and a non-ASCII character.
+  (
+    cd "$context" || exit 1
+    if [[ "$for_lambda" == "1" ]]; then
+      # Classic builder avoids OCI index / attestations that Lambda rejects
+      DOCKER_BUILDKIT=0 docker build --platform linux/amd64 \
+        -t "$local_ref" -f "$dockerfile" . ||
+        docker buildx build --platform linux/amd64 --provenance=false --sbom=false --load \
+          -t "$local_ref" -f "$dockerfile" .
+    else
+      docker build --platform linux/amd64 \
+        -t "$local_ref" -f "$dockerfile" .
+    fi
+  )
 
   docker tag "$local_ref" "$remote_ref"
   echo "==> Push ${remote_ref}"

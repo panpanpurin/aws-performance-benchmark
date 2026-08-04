@@ -119,8 +119,18 @@ module "alb" {
       health_path = a.health_path
       host_ec2    = a.host_ec2
       host_ecs    = a.host_ecs
+      host_lambda = a.host_lambda
     }
   }
+
+  # Empty unless the functions exist and lambda_behind_alb is on, which keeps
+  # the ALB appliable before compute is enabled.
+  lambda_function_arns = (
+    var.enable_lambda && var.lambda_behind_alb
+    ? module.lambda_apps[0].function_arns
+    : {}
+  )
+
   tags = local.tags
 }
 
@@ -240,17 +250,45 @@ module "lambda_apps" {
   tags                      = local.tags
 }
 
+# In-region Artillery host. Off by default: it is only needed for AWS runs, and
+# a workstation is fine for the local stack. See modules/loadgen for why the
+# workstation is not fine for AWS runs.
+module "loadgen" {
+  count  = var.enable_loadgen ? 1 : 0
+  source = "./modules/loadgen"
+
+  name              = local.name_prefix
+  account_id        = data.aws_caller_identity.current.account_id
+  aws_region        = var.aws_region
+  vpc_id            = module.network.vpc_id
+  subnet_id         = module.network.public_subnet_ids[0]
+  ami_id            = local.ec2_ami_id
+  instance_type     = var.loadgen_instance_type
+  artillery_version = var.artillery_version
+  tags              = local.tags
+}
+
 resource "local_file" "benchmark_targets" {
   count = var.write_benchmark_targets ? 1 : 0
 
   filename = "${path.module}/generated/benchmark-targets.json"
   content = jsonencode({
-    region      = var.aws_region
-    alb_dns     = module.alb.alb_dns_name
-    hostnames   = local.public_hostnames
-    lambda_urls = try(module.lambda_apps[0].function_urls, {})
-    ecr         = module.ecr.repository_urls
-    rds_host    = try(module.rds[0].address, null)
+    region  = var.aws_region
+    alb_dns = module.alb.alb_dns_name
+    scheme  = local.enable_https ? "https" : "http"
+    # When true, load tests reach the functions through the ALB like EC2 and
+    # ECS do. The Function URLs stay published regardless and remain what
+    # Prometheus scrapes for /metrics.
+    lambda_behind_alb = var.enable_lambda && var.lambda_behind_alb
+    hostnames         = local.public_hostnames
+    lambda_urls       = try(module.lambda_apps[0].function_urls, {})
+    ecr               = module.ecr.repository_urls
+    rds_host          = try(module.rds[0].address, null)
+    # Consumed by scripts/loadgen-*.sh so a run does not need terraform output.
+    loadgen = var.enable_loadgen ? {
+      instance_id = module.loadgen[0].instance_id
+      bucket      = module.loadgen[0].bucket
+    } : null
     image_refs = {
       app    = local.image_refs
       lambda = local.lambda_image_refs

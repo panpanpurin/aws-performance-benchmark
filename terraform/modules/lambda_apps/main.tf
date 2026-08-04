@@ -19,12 +19,10 @@ resource "aws_lambda_function" "app" {
     size = var.ephemeral_mb
   }
 
-  dynamic "vpc_config" {
-    for_each = each.value.needs_rds ? [1] : []
-    content {
-      subnet_ids         = var.private_subnet_ids
-      security_group_ids = var.lambda_security_group_ids
-    }
+  # Every function is attached to the VPC.
+  vpc_config {
+    subnet_ids         = var.private_subnet_ids
+    security_group_ids = var.lambda_security_group_ids
   }
 
   environment {
