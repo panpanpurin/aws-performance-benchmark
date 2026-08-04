@@ -1,6 +1,5 @@
 // Thumbnail Prometheus metrics (shared names across platforms for Grafana)
 const client = require('prom-client');
-const os = require('os');
 
 const isLambda = !!(
   process.env.AWS_LAMBDA_FUNCTION_NAME ||
@@ -32,9 +31,32 @@ const thumbnailProcessingDurationSeconds = new client.Histogram({
   buckets: [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
 });
 
+// CPU is reported from this counter, not from app_cpu_usage_percent.
+// The percentage samples process-wide CPU against one request's wall clock at
+// 100 ms, which is a couple of samples per request and inflates under
+// concurrency. Its per-request timer also costs more as concurrency rises,
+// which differs between the platforms that queue and the one that rejects.
+const cpuSecondsTotal = new client.Counter({
+  name: 'app_cpu_seconds_total',
+  help: 'Cumulative process CPU time (user+system) in seconds',
+});
+
+// Counters only move forward, so add the delta since the last sync. Called at
+// every request end and every scrape: no timer runs while a sandbox is frozen.
+let lastCpuSecondsSynced = 0;
+function syncCpuSecondsCounter() {
+  const u = process.cpuUsage();
+  const totalSeconds = (u.user + u.system) / 1e6;
+  const delta = totalSeconds - lastCpuSecondsSynced;
+  if (delta > 0) {
+    cpuSecondsTotal.inc(delta);
+    lastCpuSecondsSynced = totalSeconds;
+  }
+}
+
 const cpuUsagePercent = new client.Gauge({
   name: 'app_cpu_usage_percent',
-  help: 'Average CPU usage percentage of the Node.js process during the request',
+  help: 'Average CPU usage percent during the request - diagnostic; see app_cpu_seconds_total',
   labelNames: ['operation'],
 });
 
@@ -56,14 +78,20 @@ const peakRamUsageMb = new client.Gauge({
   labelNames: ['operation'],
 });
 
+// Same edges in all three apps so cold start is comparable between workloads.
+// The previous ceiling was 2 s, below where this app's cold starts land - its
+// Lambda image is ~155 MB with sharp's native binaries.
+const COLD_START_BUCKETS = [0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4, 6, 8, 12];
+
 const coldStartHistogram = new client.Histogram({
   name: 'app_cold_start_duration_seconds',
   help: 'Lambda cold start duration in seconds',
-  buckets: [0.01, 0.05, 0.1, 0.2, 0.5, 1, 2],
+  buckets: COLD_START_BUCKETS,
 });
 
 register.registerMetric(totalExecutionTime);
 register.registerMetric(thumbnailProcessingDurationSeconds);
+register.registerMetric(cpuSecondsTotal);
 register.registerMetric(cpuUsagePercent);
 register.registerMetric(peakCpuUsagePercent);
 register.registerMetric(ramUsageMb);
@@ -88,7 +116,16 @@ function recordColdStartIfNeeded() {
 
 // Per-request CPU/RAM sampler (EC2/ECS and Lambda)
 function startRequestMetricsSampling(intervalMs = 100) {
-  const vcpus = os.cpus().length || 1;
+  // Percent of the ONE vCPU this worker is allocated, on every platform.
+  //
+  // Not os.cpus().length: that reads the host, not the cgroup, so inside a
+  // container capped with --cpus=1 on a 2-vCPU host it returns 2 and halves
+  // the reported figure. Worse, the value can differ between EC2/ECS and the
+  // Lambda sandbox, which would bias this metric across the platforms it is
+  // meant to compare. Every platform is given exactly 1 vCPU by construction
+  // (ECS task cpu=1024, EC2 --cpus=1, Lambda 1769 MB), so the divisor is 1 and
+  // cannot drift. Matches the "1 vCPU semantics" the CSV app already uses.
+  const vcpus = 1;
 
   const startCpu = process.cpuUsage();
   const startUp = process.uptime();
@@ -123,6 +160,7 @@ function startRequestMetricsSampling(intervalMs = 100) {
 
   return () => {
     clearInterval(itv);
+    syncCpuSecondsCounter();
 
     const endCpu = process.cpuUsage();
     const endUp = process.uptime();
@@ -164,6 +202,8 @@ module.exports = {
   peakRamUsageMb,
   ramPeakMb: peakRamUsageMb,
   coldStartHistogram,
+  cpuSecondsTotal,
+  syncCpuSecondsCounter,
   recordColdStartIfNeeded,
   startRequestMetricsSampling,
   startSystemMetricsSampling,

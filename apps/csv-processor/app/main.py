@@ -7,7 +7,7 @@ from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 from mangum import Mangum
 
 from app.api.routes import router
-from app.metrics import REGISTRY
+from app.metrics import REGISTRY, sync_cpu_seconds_counter
 
 app = FastAPI(title="CSV Pokémon Processor")
 app.include_router(router)
@@ -20,6 +20,8 @@ def health_check():
 
 @app.get("/metrics")
 def metrics():
+    # Keep the counter current at scrape time.
+    sync_cpu_seconds_counter()
     data = generate_latest(REGISTRY)
     return Response(content=data, media_type=CONTENT_TYPE_LATEST)
 

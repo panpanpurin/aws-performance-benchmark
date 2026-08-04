@@ -4,7 +4,15 @@ import time
 import threading
 from typing import Dict, Optional
 from contextvars import ContextVar
-from prometheus_client import CollectorRegistry, Histogram, Gauge
+from prometheus_client import (
+    CollectorRegistry,
+    Histogram,
+    Gauge,
+    Counter,
+    disable_created_metrics,
+)
+
+disable_created_metrics()
 
 try:
     import psutil
@@ -30,8 +38,22 @@ DEFAULT_LABELS: Dict[str, str] = {
     "environment": ENVIRONMENT,
 }
 
-INTERNAL_BUCKETS = [0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5, 0.75, 1, 1.5, 2, 3]
-TOTAL_BUCKETS = [0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5, 0.75, 1, 1.5, 2, 3, 5, 8, 12, 20, 30]
+# Bucket edges from the 2026-08-03 pilot: mean service time 15.5 ms on
+# EC2/ECS, 23.4 ms on Lambda. The previous edges were too coarse there and
+# histogram_quantile pinned p95/p99 to the boundaries.
+INTERNAL_BUCKETS = [
+    0.005, 0.0075, 0.01, 0.0125, 0.015, 0.02, 0.025, 0.03, 0.04, 0.05,
+    0.07, 0.1, 0.15, 0.2, 0.3, 0.5, 0.75, 1, 2, 5,
+]
+TOTAL_BUCKETS = [
+    0.005, 0.0075, 0.01, 0.0125, 0.015, 0.02, 0.025, 0.03, 0.04, 0.05,
+    0.07, 0.1, 0.15, 0.2, 0.3, 0.5, 0.75, 1, 2, 5,
+]
+
+# Same edges in all three apps so cold start is comparable between workloads.
+# Dense over 0.25-3 s; anything past the last edge lands in +Inf where a
+# quantile cannot be interpolated.
+COLD_START_BUCKETS = [0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4, 6, 8, 12]
 
 app_total_execution_time_seconds = Histogram(
     "app_total_execution_time_seconds",
@@ -51,13 +73,25 @@ app_cold_start_duration_seconds = Histogram(
     "app_cold_start_duration_seconds",
     "Lambda cold start duration (seconds)",
     labelnames=["service", "environment"],
-    buckets=TOTAL_BUCKETS,
+    buckets=COLD_START_BUCKETS,
+    registry=REGISTRY,
+)
+
+# CPU is reported from this counter, not from app_cpu_usage_percent below.
+# The percentage is sampled per request against one request's wall clock, so
+# concurrency inflates it, and on Lambda the sandbox freezes between
+# invocations, which dilutes it. rate(app_cpu_seconds_total) divided by the
+# request rate over the same window has neither problem.
+app_cpu_seconds_total = Counter(
+    "app_cpu_seconds_total",
+    "Cumulative process CPU time (user+system) in seconds",
+    labelnames=["service", "environment"],
     registry=REGISTRY,
 )
 
 app_cpu_usage_percent = Gauge(
     "app_cpu_usage_percent",
-    "Process CPU usage (%)",
+    "Process CPU usage (%) - diagnostic; see app_cpu_seconds_total",
     labelnames=["service", "environment"],
     registry=REGISTRY,
 )
@@ -90,6 +124,32 @@ _REQ_WALL_T0: ContextVar[Optional[float]] = ContextVar("_REQ_WALL_T0", default=N
 _PEAK_CPU: Optional[float] = None
 _PEAK_RAM: Optional[float] = None
 _PEAK_LOCK = threading.Lock()
+
+# Counters only move forward, so add the delta since the last sync. Locked:
+# uvicorn serves from a thread pool, Mangum from the handler thread.
+_CPU_SECONDS_SYNCED = 0.0
+_CPU_SYNC_LOCK = threading.Lock()
+
+
+def sync_cpu_seconds_counter():
+    """Add CPU used since the last call to app_cpu_seconds_total.
+
+    Called at the end of every request and on every /metrics scrape: no
+    background timer runs while a Lambda sandbox is frozen.
+    """
+    global _CPU_SECONDS_SYNCED
+    if not psutil:
+        return
+    try:
+        t = psutil.Process(os.getpid()).cpu_times()
+        total = float(t.user + t.system)
+        with _CPU_SYNC_LOCK:
+            delta = total - _CPU_SECONDS_SYNCED
+            if delta > 0:
+                app_cpu_seconds_total.labels(**DEFAULT_LABELS).inc(delta)
+                _CPU_SECONDS_SYNCED = total
+    except Exception:
+        pass
 
 
 def maybe_record_cold_start():
@@ -133,6 +193,7 @@ def begin_cpu_sample():
 def end_cpu_sample_and_record():
     """End per-request CPU/RAM sample and update peaks."""
     global _PEAK_CPU, _PEAK_RAM
+    sync_cpu_seconds_counter()
     if not psutil:
         return
     try:
@@ -148,10 +209,17 @@ def end_cpu_sample_and_record():
             wall_now = time.perf_counter()
             cpu_delta = max(0.0, cpu_now - t0)
             wall_delta = max(1e-6, wall_now - w0)
-            # 1 vCPU semantics (t2.micro / ECS limits / Lambda 1024 MB ≈ 1 vCPU)
+            # Percent of the ONE vCPU this worker is allocated, on every
+            # platform: no divisor by host core count, which would read the
+            # host rather than the cgroup and differ between EC2/ECS and the
+            # Lambda sandbox. Every platform is given exactly 1 vCPU by
+            # construction (ECS task cpu=1024, EC2 --cpus=1, Lambda 1769 MB).
             cpu_pct = (cpu_delta / wall_delta) * 100.0
 
-        cpu_pct = max(0.0, min(100.0, cpu_pct))
+        # Unclamped. The cgroup caps this worker at one vCPU, so a reading above
+        # 100 indicates the concurrency inflation described at
+        # app_cpu_usage_percent. Report CPU from app_cpu_seconds_total.
+        cpu_pct = max(0.0, cpu_pct)
 
         labels = (DEFAULT_LABELS["service"], DEFAULT_LABELS["environment"])
         app_cpu_usage_percent.labels(*labels).set(cpu_pct)

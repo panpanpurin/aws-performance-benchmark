@@ -1,7 +1,6 @@
 // Prometheus metrics shared across EC2, ECS, and Lambda (identical names for Grafana)
 const express = require('express');
 const client = require('prom-client');
-const os = require('os');
 const { AsyncLocalStorage } = require('async_hooks');
 
 // Cold-start metrics apply when Lambda runtime env vars are present
@@ -27,11 +26,15 @@ const als = new AsyncLocalStorage();
 const lambdaInitHr = process.hrtime.bigint();
 let coldStartRecorded = false;
 
+// Same edges in all three apps so cold start is comparable between workloads.
+// Dense over 0.25-3 s; past the last edge a quantile cannot be interpolated.
+const COLD_START_BUCKETS = [0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4, 6, 8, 12];
+
 const coldStartDuration = new client.Histogram({
   name: 'app_cold_start_duration_seconds',
   help: 'Time from runtime init to first handler invocation (cold start)',
   labelNames: ['function', 'region', 'memory_mb', 'runtime'],
-  buckets: [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10],
+  buckets: COLD_START_BUCKETS,
 });
 register.registerMetric(coldStartDuration);
 
@@ -86,10 +89,35 @@ const rssPeakGauge = new client.Gauge({
   help: 'Peak Resident Set Size (MB)',
 });
 
+// CPU is reported from this counter, not from app_cpu_usage_percent.
+// A percentage is CPU seconds per wall second, which is undefined for a Lambda
+// sandbox frozen between invocations - wall time advances, CPU time does not.
+// CPU seconds divided by requests over the same window is freeze-immune.
+// The gauges below are diagnostic only.
+const cpuSecondsTotal = new client.Counter({
+  name: 'app_cpu_seconds_total',
+  help: 'Cumulative process CPU time (user+system) in seconds',
+});
+
+register.registerMetric(cpuSecondsTotal);
 register.registerMetric(cpuPercentGauge);
 register.registerMetric(cpuPercentPeakGauge);
 register.registerMetric(rssGauge);
 register.registerMetric(rssPeakGauge);
+
+// Counters only move forward, so add the delta since the last sync. Called
+// from the interval below and from every request end: the interval may never
+// fire while a Lambda sandbox is frozen.
+let lastCpuSecondsSynced = 0;
+function syncCpuSecondsCounter() {
+  const u = process.cpuUsage();
+  const totalSeconds = (u.user + u.system) / 1e6;
+  const delta = totalSeconds - lastCpuSecondsSynced;
+  if (delta > 0) {
+    cpuSecondsTotal.inc(delta);
+    lastCpuSecondsSynced = totalSeconds;
+  }
+}
 
 let lastCpuUsage = process.cpuUsage();
 let lastHrtime = process.hrtime.bigint();
@@ -98,6 +126,8 @@ let rssPeak = 0;
 const CPU_INTERVAL_MS = 5000;
 
 setInterval(() => {
+  syncCpuSecondsCounter();
+
   const nowHr = process.hrtime.bigint();
   const elapsedNs = Number(nowHr - lastHrtime);
   lastHrtime = nowHr;
@@ -109,9 +139,18 @@ setInterval(() => {
 
   const deltaTotalUs = deltaUser + deltaSys;
   const elapsedSec = elapsedNs / 1e9;
-  const cpuCores = os.cpus().length || 1;
+  // Percent of the ONE vCPU this worker is allocated, on every platform.
+  //
+  // Not os.cpus().length: that reads the host, not the cgroup, so inside a
+  // container capped with --cpus=1 on a 2-vCPU host it returns 2 and halves
+  // the reported figure. Worse, the value can differ between EC2/ECS and the
+  // Lambda sandbox, which would bias this metric across the platforms it is
+  // meant to compare. Every platform is given exactly 1 vCPU by construction
+  // (ECS task cpu=1024, EC2 --cpus=1, Lambda 1769 MB), so the divisor is 1 and
+  // cannot drift. See docs/PAPER-SSCAD-2026.md.
+  const ALLOCATED_VCPUS = 1;
 
-  const cpuPercent = (deltaTotalUs / 1e6) / elapsedSec / cpuCores * 100;
+  const cpuPercent = (deltaTotalUs / 1e6) / elapsedSec / ALLOCATED_VCPUS * 100;
   cpuPercentGauge.set(cpuPercent);
   if (cpuPercent > cpuPeak) {
     cpuPeak = cpuPercent;
@@ -160,6 +199,7 @@ function requestTimingMiddleware(req, res, next) {
 
       httpRequestDuration.labels(route, req.method, String(res.statusCode)).observe(totalSec);
       internalProcessingDuration.labels(route, req.method, String(res.statusCode)).observe(internalSec);
+      syncCpuSecondsCounter();
     });
 
     res.on('close', () => {
@@ -173,6 +213,7 @@ function requestTimingMiddleware(req, res, next) {
 
       httpRequestDuration.labels(route, req.method, status).observe(totalSec);
       internalProcessingDuration.labels(route, req.method, status).observe(internalSec);
+      syncCpuSecondsCounter();
     });
 
     next();
@@ -189,6 +230,8 @@ function sequelizeLogger(_sql, timingMs) {
 const metricsRouter = express.Router();
 metricsRouter.get('/metrics', async (_req, res) => {
   try {
+    // Keep the counter current at scrape time.
+    syncCpuSecondsCounter();
     res.set('Content-Type', register.contentType);
     res.end(await register.metrics());
   } catch (err) {
@@ -202,5 +245,6 @@ module.exports = {
   requestTimingMiddleware,
   sequelizeLogger,
   recordColdStartOnce,
+  syncCpuSecondsCounter,
   isLambda,
 };

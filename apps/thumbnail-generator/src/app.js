@@ -1,7 +1,7 @@
 const express = require('express');
 const app = express();
 
-const { register } = require('./metrics');
+const { register, syncCpuSecondsCounter } = require('./metrics');
 const thumbnailRoutes = require('./routes/thumbnail');
 
 app.use(express.json());
@@ -12,6 +12,8 @@ app.use('/thumbnail', thumbnailRoutes);
 
 app.get('/metrics', async (_req, res) => {
   try {
+    // Keep the counter current at scrape time.
+    syncCpuSecondsCounter();
     res.set('Content-Type', register.contentType);
     res.end(await register.metrics());
   } catch (err) {
