@@ -22,9 +22,10 @@ compute model is the only intended difference.
 | EC2 | `c6i.large` host, one per workload; container capped at 1 vCPU / 1024 MB |
 | ECS on EC2 | `c6i.large` hosts; task 1024 CPU units (1 vCPU) / 1024 MB |
 | Lambda | 1769 MB (one full vCPU), 1024 MB ephemeral, 30 s timeout, container image, **reserved concurrency 1** |
-| Database | one `db.t4g.micro` PostgreSQL 17.6, Single-AZ, shared by all platforms |
+| Database | one `db.m6g.large` PostgreSQL 17.6, Single-AZ, shared by all platforms |
 | Load generator | Artillery 2.0.23, five phases, ~32 min per run |
-| Requests per run | 43,800 (anilove), 38,880 (csv), 13,740 (thumbnail) |
+| Arrivals per run | 43,800 (anilove), 38,880 (csv), 13,740 (thumbnail) |
+| HTTP requests per run | **219,000** (anilove — 5 per arrival), 38,880 (csv), 13,740 (thumbnail) |
 
 **Every platform gets one vCPU and 1 GB**, enforced three different ways: the
 ECS task definition caps CPU units and memory, the EC2 `docker run` is given
@@ -62,15 +63,106 @@ active and fails if the deployed cap does not match `terraform.tfvars`.
 
 Two consequences must be stated in the paper:
 
-- **Lambda rejects, it does not queue.** Synchronous invocations beyond the
-  reserved concurrency return HTTP 429 immediately, whereas EC2 and ECS queue
-  and degrade. Above saturation, Lambda's latency therefore looks *better*
-  because only served requests are timed, while its error rate rises sharply.
-  Report latency and error rate together, or the comparison misleads.
+- **Lambda rejects, it does not queue — and it starts rejecting far below the
+  ceiling.** Invocations beyond the reserved concurrency are throttled, whereas
+  EC2 and ECS queue and degrade. Above saturation Lambda's latency therefore
+  looks *better*, because only served requests are timed, while its error rate
+  rises sharply. Report latency and error rate together, or the comparison
+  misleads.
+
+  Measured, 2026-08-03, csv-processor at **2 req/s** — about 5% of Lambda's
+  ~43 req/s ceiling: 780 requests produced 621 × 200 and **159 × HTTP 502**,
+  and CloudWatch confirmed **156 throttles and 0 errors**. EC2 and ECS served
+  the identical arrival pattern with zero failures.
+
+  The cause is arrival burstiness, not utilisation. Artillery's `arrivalRate: N`
+  starts N virtual users at essentially the same instant each second rather than
+  spacing them evenly, so at concurrency 1 the second arrival in a burst is
+  rejected outright. A socket backlog and an event loop absorb that; a Lambda
+  sandbox at reserved concurrency 1 has nowhere to put it.
+
+  Two consequences for the phase schedule. First, `ceiling = 1/service_time`
+  assumes smooth arrivals and therefore describes EC2 and ECS well and Lambda
+  badly - Lambda's usable rate is set by burst size, not mean utilisation.
+  Second, any run at matched arrival rates will attribute to Lambda a failure
+  rate that is a property of the queueing model, not of the compute model. State
+  which is being measured.
+
+- **A throttled Lambda behind the ALB returns 502, not 429.** The ALB converts
+  the throttle rather than passing the status through. Filtering results on 429
+  reports zero throttles no matter how many occurred; count 502 responses, or
+  read `Throttles` from the `AWS/Lambda` CloudWatch namespace, which is
+  authoritative and separates throttles from genuine function errors.
 - **Autoscaling is excluded by design.** This is the defensible answer to a
   reviewer who objects that Lambda was handicapped: the experiment measures
   per-request cost of the compute model, and elasticity is a separate dimension
   the design deliberately holds constant.
+
+### Two experiments, not one
+
+Elasticity is held constant in Experiment A and then measured on its own in
+Experiment B. Both run against all three applications. They answer different
+questions, use different Lambda configurations, and — importantly — **read
+Lambda's numbers from different places**.
+
+| | **A — per-request cost** | **B — elasticity** |
+|---|---|---|
+| Question | What does one request cost on each compute model? | What happens when the platform is free to scale? |
+| `lambda_reserved_concurrency` | `1` | `-1` |
+| Workers | 1 vCPU each, all three platforms | EC2/ECS 1 vCPU; Lambda scales to the account limit |
+| Load | Below every platform's ceiling | At and beyond the ceiling |
+| Lambda metric source | Prometheus `app_*` | **CloudWatch** (see below) |
+| Reported | Latency mean/P95/P99, CPU per request, RAM | Throughput, concurrency reached, cold starts, error rate |
+
+Switching between them is one line in `terraform.tfvars` plus `make apply`, so
+both are cheap to run in a session. `make validate-fairness` reports which mode
+is deployed and warns when Lambda is uncapped.
+
+**Why B cannot be compared head-to-head with A.** Measured on csv-processor at
+60 req/s: uncapped Lambda served 5400 of 5400 requests with **zero throttles**,
+reaching **59 concurrent sandboxes** — roughly 59 vCPUs. EC2 and ECS, holding
+one vCPU each, returned 5400 × 200 but logged ~5000 `ETIMEDOUT` apiece from
+queueing. Lambda did not win on compute; it was given 59 times the capacity.
+Reporting those latencies side by side would be meaningless, which is precisely
+what `reserved_concurrency = 1` exists to prevent in Experiment A.
+
+**Lambda's `app_*` metrics are valid only while it runs a single sandbox.** Each
+sandbox holds its own in-memory Prometheus registry and a scrape returns
+whichever one answered it, so with more than one the figures are a sample rather
+than an aggregate. Measured with just two sandboxes, the served rate read
+36.83 req/s against a true 2.00, and latency read 23.32 ms against CloudWatch's
+36.3 ms — an error invisible on the chart, because 23 ms looks perfectly
+reasonable. With 59 sandboxes several series read 0 while one read 817.
+
+The condition is the **sandbox count, not the cap**. Uncapping does not by
+itself create a second sandbox: measured uncapped at 2 req/s with smoothed
+arrivals, peak concurrency stayed at 1 and the `app_*` figures matched the
+capped run exactly (22.82 vs 22.73 ms mean, 2.00 req/s served in both). Every
+earlier uncapped run that corrupted the metrics had used `arrivalRate`, whose
+bursts forced a second sandbox — so smoothing the arrivals removed the
+measurement artifact as well as the throttling.
+
+Read `lambda_cw_concurrency_max` before trusting any Lambda `app_*` number: **1
+means the scrape saw everything; anything higher means it did not.** The
+dashboard shows this panel next to the mode banner for exactly this reason.
+
+Use CloudWatch for Lambda in Experiment B. It aggregates across sandboxes and is
+what production practice relies on:
+
+```bash
+# Duration (ms): avg and max across all sandboxes
+aws cloudwatch get-metric-statistics --namespace AWS/Lambda \
+  --metric-name Duration --dimensions Name=FunctionName,Value=<fn> \
+  --start-time <ISO> --end-time <ISO> --period 60 --statistics Average Maximum
+
+# Also: Invocations, Throttles, ConcurrentExecutions, Errors
+```
+
+Throttles and Errors are separate metrics there, which matters: a throttled
+invocation is not a function error, and behind an ALB both surface as HTTP 502.
+
+EC2 and ECS keep their Prometheus `app_*` metrics in both experiments — only
+Lambda's collection changes.
 
 ### Load phases must stay near or below saturation
 
@@ -78,18 +170,218 @@ One worker at 1 vCPU has a hard throughput ceiling of roughly
 `1 / mean_service_time`. Using the duration estimates in
 [COSTS.md](./COSTS.md), the committed phase schedule oversaturates every suite:
 
-| Suite | Est. service time | Ceiling at 1 worker | Committed peak |
-|-------|------------------|---------------------|----------------|
-| anilove | ~45 ms | ~22 req/s | 50 req/s |
-| csv-processor | ~175 ms | ~5.7 req/s | 28 req/s |
-| thumbnail-generator | ~290 ms | ~3.4 req/s | 12 req/s |
+Artillery's `arrivalRate` counts **virtual users, not HTTP requests**, and each
+one runs the whole scenario flow. AniLove's flow is a five-step CRUD cycle
+(POST, GET list, GET by id, PUT, DELETE), so its committed rates must be
+multiplied by five before being compared to a ceiling in requests per second.
+csv-processor and thumbnail-generator issue one request per arrival, so for
+those the two coincide. Getting this wrong understates AniLove's real load by
+5x:
+
+| Suite | Est. service time | Ceiling at 1 worker | Committed peak `arrivalRate` | Reqs/arrival | Actual peak | Over ceiling |
+|-------|------------------|---------------------|------------------------------|--------------|-------------|--------------|
+| anilove | ~45 ms (estimate) | ~22 req/s | 50 | **5** | **250 req/s** | **11x** |
+| csv-processor | ~175 ms (estimate) | ~5.7 req/s | 28 | 1 | 28 req/s | 4.9x |
+| thumbnail-generator | ~290 ms (estimate) | ~3.4 req/s | 12 | 1 | 12 req/s | 3.5x |
+
+**Those service times were estimates and at least one was badly wrong.** The
+csv-processor pilot (2026-08-03) measured mean server-side service time of
+**15.51 ms on EC2, 15.54 ms on ECS and 23.44 ms on Lambda** — roughly 11x faster
+than the 175 ms assumed above. The real ceiling is therefore ~64 req/s on EC2 and
+ECS and **~43 req/s on Lambda, which binds**, not 5.7 req/s.
+
+The consequence inverts the concern for that suite: its committed peak of 28
+req/s was **65% of the ceiling, not 4.9x over it**, so the schedule never reached
+saturation at all and would have produced no saturation regime to report. Its
+phases are now derived from the measurement:
+
+Ceilings re-measured with smoothed arrivals: **EC2 69 req/s, ECS 67, Lambda 44**
+(mean service time 14.39 / 15.02 / 22.73 ms). Lambda binds. The committed
+Experiment A schedule:
+
+| Phase | Rate | Duration | Requests | Utilisation (EC2/ECS · Lambda) |
+|-------|------|----------|----------|--------------------------------|
+| Warm-up | 20 req/s | 3 min | 3,600 | discarded |
+| Probe | 5 req/s | 4 min | 1,200 | 7% · 11% |
+| Probe | 10 req/s | 4 min | 2,400 | 15% · 23% |
+| **Primary** | **20 req/s** | **12 min** | **14,400** | **29% · 45%** |
+| Probe | 30 req/s | 4 min | 7,200 | 43% · 68% |
+
+27 minutes. The shape is deliberate. The probes give latency **as a function of
+load** — how each platform responds as utilisation rises, and where its knee is
+— which a single operating point cannot show. The long primary phase keeps
+~14,400 requests at the rate the headline figures are quoted at, so its P99
+rests on roughly 144 tail samples rather than the handful a uniform sweep would
+leave. Probe phases are ample for mean and P95 and thin for P99, which is
+exactly why the tail is reported from the primary point only.
+
+Warm-up runs **at** the primary rate rather than below it. Warming lower leaves a
+step change at the boundary and the resulting transient falls inside the window
+being reported.
+
+The 30 req/s probe sits at 68% of Lambda's ceiling, the closest any Experiment A
+phase comes to it. If Lambda shows throttling there while EC2 and ECS do not,
+that is a result about how early the no-queue model starts to bite, not a
+configuration error — report it rather than tuning the rate down.
+
+A 60 req/s stress phase was tried and removed: it put EC2 and ECS at 94% of
+their own ceiling, where they built 60-second queues and logged ~5000
+`ETIMEDOUT` each, while Lambda shed 69%. See "One rate cannot saturate three
+platforms" below.
+
+anilove and thumbnail-generator still carry estimated rates and a warning banner
+in their `test-*.yml`. Pilot them before their numbers are used.
 
 Run entirely above the ceiling and the result is queueing on EC2/ECS versus
-rejection on Lambda, not per-request cost. Before the measurement runs, do one
-short pilot to obtain real service times from
-`app_total_execution_time_seconds`, then set the steady phase to roughly 60-70%
-of the measured ceiling and let only the stress phase cross it. That gives one
-regime for the latency comparison and one for the saturation comparison.
+rejection on Lambda, not per-request cost. The committed schedules still carry
+the rates written for the retired `t2.micro` / `t3.small` pair and **must be
+re-derived before any run whose numbers reach the paper**; each `test-*.yml`
+carries a warning banner to that effect until it is.
+
+The pilot is tooled:
+
+```bash
+make pilot-configs      # generate pilot-*.yml from test-*.yml (sync-targets also does this)
+make pilot-csv          # ~7 min at ~35% of the estimated ceiling; also pilot-anilove, pilot-thumbnail
+```
+
+Read mean service time per platform over the phase-2 window only — the first
+60 s absorbs cold starts and JIT and must be excluded — then set:
+
+```
+ceiling = 1000 / mean_ms   (using the slowest platform)
+steady  = 0.65 * ceiling   stress = 1.2-1.5 * ceiling
+```
+
+Apply the same numbers to all three `test-*.yml` of that suite. That gives one
+regime for the latency comparison and one for the saturation comparison. If the
+pilot itself did not return ~100% 2xx, it was already saturating and its rate
+must come down before the reading is usable.
+
+### Smooth the arrivals: use arrivalCount, not arrivalRate
+
+`arrivalRate: N` starts N virtual users at essentially the same instant each
+second rather than spacing them across it. A container absorbs that burst in its
+socket backlog; a Lambda sandbox at reserved concurrency 1 has no queue at all,
+so the second arrival in each burst is rejected outright.
+
+Measured on csv-processor at 12 req/s with `reserved_concurrency = 1`, control
+and test back to back, same 1800 requests at the same mean rate:
+
+| Arrival process | HTTP 200 | HTTP 502 | CloudWatch throttles | Errors |
+|-----------------|----------|----------|----------------------|--------|
+| `arrivalRate: 12` | 1566 | **234** | **147** | 0 |
+| `arrivalCount: 1800` | **1797** | **3** | **3** | 0 |
+
+A ~78x reduction from changing only the arrival process. Zero function errors in
+both: every failure was a concurrency rejection.
+
+This retro-explains the earlier runs - 20.4%, 15.4% and 15.4% at 2 req/s, and
+69% at 60 req/s - none of which were Lambda being slow. It also matches the
+result from the opposite direction: uncapping Lambda absorbed the identical
+bursts with **one extra sandbox**.
+
+The consequence is that `reserved_concurrency = 1` is defensible after all. It
+cannot be driven by a bursty generator, but with smoothed arrivals it yields
+strict equal capacity *and* a clean latency comparison - no handicap to explain
+to a reviewer, and no double-digit error rate contaminating the headline table.
+All `test-*.yml` and `pilot-*.yml` phases use `arrivalCount`.
+
+### Smoothing within a stream does not remove coincidence between streams
+
+`arrivalCount` fixes burstiness *inside* one Artillery process. It does not
+coordinate across processes, and the three platforms are loaded concurrently by
+design so that they share a time window. Each schedules its own arrivals
+independently, so arrivals still coincide at the shared ALB — and a Lambda
+sandbox at reserved concurrency 1 has no queue to absorb the overlap.
+
+Measured on the first full Experiment A run (2026-08-04, capped, smoothed
+arrivals, all three suites concurrent, rates of only 5-20 req/s):
+
+| | |
+|---|---|
+| Invocations | 4,306 |
+| **Throttles** | **800 (~16%)** |
+| Errors | 0 |
+| Peak concurrency | 1 |
+
+EC2 and ECS served ~5,300 requests over the same window while Lambda served
+~1,400. Both container platforms held exactly 20.00 req/s in the primary phase.
+
+This is not a configuration fault and it is not fixed by lowering the rate: at
+5 req/s the inter-arrival gap is 200 ms against a 23 ms service time, so the
+mean utilisation is about 11%. The rejections come from *coincidence*, not
+utilisation. It is the same property the paper already identifies — Lambda
+rejects where a container queues — but it appears at a far lower load than the
+ceiling arithmetic suggests, and it appears because three independent load
+streams share one target.
+
+**Reported as a finding, not engineered away.** At genuinely equal provisioned
+capacity, a socket backlog absorbs arrival coincidence for free and a single
+Lambda sandbox cannot. Quote Lambda's latency alongside its throttle rate at
+every phase, and state that the throttles are a property of the queueing model
+rather than of per-request compute cost. Two alternatives were considered and
+rejected: giving Lambda a concurrency budget of 2-3 as a "queue equivalent"
+(departs from equal capacity, and the choice of 2 versus 3 would be arbitrary),
+and staggering the three platforms in time (sacrifices the shared time window,
+which is what makes external conditions common to all three).
+
+A caveat on how this was missed: the `arrivalCount` validation above ran Lambda
+**alone**, which isolated the variable under test and therefore could not
+observe cross-stream coincidence. A validation that isolates one factor cannot
+speak to interactions with the others.
+
+### One rate cannot saturate three platforms
+
+Measured ceilings differ by 57%: EC2 69 req/s, ECS 67, Lambda 44. A shared
+stress rate therefore lands somewhere different on each. At 60 req/s EC2 and ECS
+sat at 94% of their own ceiling and built 60-second queues, logging ~5000
+`ETIMEDOUT` apiece, while Lambda shed 69% of requests. That measures the
+queueing model, not the compute model.
+
+Experiment A therefore has **no stress phase**: warm-up, steady and soak, all
+below every ceiling. Saturation is Experiment B, run per platform at a multiple
+of its *own* ceiling and reported per platform rather than compared
+head-to-head.
+
+### Re-tune the latency buckets from the same pilot
+
+**Do this in the same step as the phase rates — it is not optional, and it
+cannot be fixed afterwards.** `histogram_quantile` interpolates linearly inside
+whichever bucket the quantile falls into, and latency is not uniformly
+distributed inside a bucket, so a wide bucket yields a systematically wrong P95.
+The resolution is lost at observation time; no PromQL can recover it.
+
+The committed edges are too coarse where each workload's latency actually sits:
+
+| App | Edges bracketing the expected P95 | Bucket width |
+|-----|-----------------------------------|--------------|
+| thumbnail-generator | `0.5` → `1` | **500 ms** |
+| anilove | `0.1` → `0.25` | 150 ms |
+| csv-processor | `0.3` → `0.5` | 200 ms |
+
+A P95 of ~700 ms on thumbnail is being interpolated across a half-second-wide
+bucket, which is a larger error bar than any difference between platforms the
+paper is likely to report.
+
+From the pilot, take each platform's P50 and P99 for the suite, then edit
+`buckets` for `app_total_execution_time_seconds` and
+`app_internal_processing_time_seconds` so that:
+
+- at least 5-6 edges fall between the fastest platform's P50 and the slowest
+  platform's P99 — that is the range where the quantiles land;
+- no bucket in that range is wider than about 25% of the P95 itself;
+- the last finite edge is above the slowest platform's worst case, so nothing
+  lands in `+Inf`;
+- **the edges are identical for all three platforms**, which they are
+  automatically, since the three platforms share one source file.
+
+Edit them in `apps/anilove/src/metrics.js`, `apps/csv-processor/app/metrics.py`
+(`TOTAL_BUCKETS` / `INTERNAL_BUCKETS`) and
+`apps/thumbnail-generator/src/metrics.js`, then rebuild and push the images —
+buckets are baked into the image, so a change requires `make push-images` and a
+`terraform apply`, not just a restart. Record the final edges in the paper:
+bucket boundaries are part of how a reported percentile was obtained.
 
 Thread usage is additionally pinned inside the applications:
 `OMP_NUM_THREADS=OPENBLAS_NUM_THREADS=1` for csv-processor and
@@ -112,7 +404,8 @@ Reference implementation: `apps/anilove/src/metrics.js`.
 | `app_total_execution_time_seconds` | Full request time measured inside the application |
 | `app_internal_processing_time_seconds` | Same, minus time spent waiting on PostgreSQL |
 | `app_cold_start_duration_seconds` | Runtime init to first invocation; Lambda only, once per container |
-| `app_cpu_usage_percent` | Process CPU over the sampling interval |
+| `app_cpu_seconds_total` | Cumulative process CPU time; **the metric CPU is reported from** |
+| `app_cpu_usage_percent` | Process CPU utilisation — diagnostic only, not comparable across platforms (see below) |
 | `app_ram_peak_mb` | Peak resident memory since process start |
 | `artillery_rates{metric="http_request_rate"}` | Throughput, client-side |
 | `artillery_summaries` 2xx ratio | Error rate, client-side |
@@ -153,8 +446,11 @@ histogram_quantile(
      / clamp_min(sum(increase(app_cold_start_duration_seconds_count[6h])), 1)
 sum(increase(app_cold_start_duration_seconds_count[6h]))
 
+# CPU cost per request, in CPU-milliseconds. This is the CPU figure to report.
+1000 * sum by (instance) (rate(app_cpu_seconds_total[5m]))
+     / clamp_min(sum by (instance) (rate(app_total_execution_time_seconds_count[5m])), 1e-9)
+
 # Resources and load
-avg by (instance) (avg_over_time(app_cpu_usage_percent[5m]))
 max by (instance) (max_over_time(app_ram_peak_mb[5m]))
 avg by (service) (artillery_rates{metric="http_request_rate"})
 
@@ -171,6 +467,31 @@ avg by (service) (artillery_rates{metric="http_request_rate"})
 95th-percentile database wait, because the request at the 95th percentile of
 total time is generally not the one at the 95th percentile of internal time.
 Only means are additive, so the database-wait figure is mean-based.
+
+**CPU utilisation is not comparable across platforms; CPU per request is.**
+A percentage is CPU seconds per wall second, which is well defined for a
+process that is always running — what EC2 and ECS provide — but not for a
+Lambda sandbox, which is frozen between invocations. Wall time keeps advancing
+while CPU time does not, so `app_cpu_usage_percent` is diluted toward zero on
+Lambda by however idle the function happened to be, making it look cheaper in
+CPU as a pure artefact. Sampling per request instead avoids the freeze but
+counts process-wide CPU against one request's wall time, so concurrent requests
+inflate it.
+
+`app_cpu_seconds_total` is a counter and has neither problem. Divided by the
+request count over the same window it gives CPU seconds per request, which is
+freeze-immune (a frozen sandbox accrues no CPU and serves no requests) and
+concurrency-safe (numerator and denominator cover the same window). The three
+percentage gauges are retained for the dashboards and live diagnosis, and
+should not be published.
+
+**Cold start buckets are shared across the three applications.** All three use
+the same edges (`0.1 … 12 s`, dense over 0.25-3 s), so cold start is comparable
+between workloads and not only between platforms. A quantile falling in the
+`+Inf` bucket cannot be interpolated, so the ceiling must exceed the slowest
+real cold start. Lambda image sizes as pushed: csv-processor 251 MB (pandas and
+numpy), thumbnail-generator 155 MB (sharp), anilove 147 MB — so csv-processor
+is the one that sets the requirement, not thumbnail-generator.
 
 **Cold start has a small sample size.** It is recorded once per container and
 only when Lambda environment variables are present, so *n* is the number of
@@ -189,6 +510,7 @@ make check                # tools and credentials
 cp terraform/backend.tf.example terraform/backend.tf   # fill in, see terraform/README.md
 make validate-tf          # fmt, validate, backend, tfvars, ECR images
 make apply
+make lock-deps            # pins the transitive Python closure; commit the result
 make push-images
 make sync-targets         # fills the REPLACE_ME targets from terraform outputs
 make ecs-up
@@ -203,6 +525,47 @@ make ecs-down             # or make destroy
 
 A full session costs roughly US$ 7 and takes about 8 hours including setup and
 teardown. See [COSTS.md](./COSTS.md).
+
+### Build reproducibility
+
+A benchmark whose images resolve different library versions on each build
+measures a moving target. Three things are pinned so that a rebuild months later
+produces the same binaries:
+
+| What | How |
+|------|-----|
+| Node dependencies | `package-lock.json` committed for both Node apps; images build with `npm ci`, which installs exactly the locked tree and fails if it disagrees with `package.json` |
+| Python dependencies | Direct versions pinned in `requirements.txt`; run `scripts/lock-python-deps.sh` to pin the transitive closure too |
+| Base images | All four `FROM` lines pinned by `sha256:` digest, not by tag |
+
+The versions in use are recorded below. `sharp` and `numpy` deserve the
+attention: each *is* the cost of its workload, so a version change is a change
+to what the paper measures, not an implementation detail.
+
+| App | Key locked versions |
+|-----|---------------------|
+| anilove | express 5.2.1, sequelize 6.37.8, pg 8.22.0, bcrypt 6.0.0 |
+| thumbnail-generator | **sharp 0.34.5**, express 5.2.1, multer 2.2.0 |
+| csv-processor | pandas 2.3.1, fastapi 0.116.0, psutil 6.1.1 (numpy pinned by the lock script) |
+
+Note that `sharp` resolved to 0.34.5 even though `package.json` requests
+`^0.34.4` — that one-patch drift, on the single library the thumbnail workload
+is built around, is exactly what the lockfile now prevents.
+
+Base image digests, resolvable with
+`docker buildx imagetools inspect <image> --format '{{.Manifest.Digest}}'`:
+
+| Image | Digest |
+|-------|--------|
+| `node:22-slim` | `sha256:f32b8106…0ffdc46` |
+| `python:3.12-slim` | `sha256:57cd7c3a…6317710de` |
+| `public.ecr.aws/lambda/nodejs:22-x86_64` | `sha256:b37cb622…8e562ed85` |
+| `public.ecr.aws/lambda/python:3.12-x86_64` | `sha256:ec6a76e8…c289592cc` |
+
+Debian-based `node:22-slim` is used rather than Alpine because the Lambda base
+image is glibc, and native modules such as `sharp` and `bcrypt` ship different
+prebuilt binaries per C library. Matching libc keeps the compute model the only
+difference between platforms.
 
 ### How many repetitions
 
@@ -235,17 +598,17 @@ with empty Prometheus scrape targets for the csv and thumbnail suites.
 
 ## Limitations
 
-- **The database is shared.** One `db.t4g.micro` serves AniLove on all three
+- **The database is shared.** One `db.m6g.large` serves AniLove on all three
   platforms; `DB_SCHEMA` isolates data, not load. Concurrent runs contend for
   the same CPU and IOPS, and that contention is part of the measured database
   wait.
-- **Node dependency versions are not locked.** No `package-lock.json` is
-  committed and `package.json` uses `^` ranges, so a rebuild at a later date
-  can resolve a different tree. This matters most for `sharp`, which is the
-  thumbnail workload's cost. Python dependencies are pinned exactly in
-  `requirements.txt`. Base images are floating tags. Record the resolved
-  versions at run time with
-  `docker run --rm <image> npm ls --omit=dev --depth=0`.
+- **Transitive Python dependencies are not locked yet.** The Node applications
+  are fully pinned (see [Build reproducibility](#build-reproducibility)), and
+  csv-processor's direct dependencies are pinned exactly, but its transitive
+  set — above all `numpy`, which is what pandas computes with — still resolves
+  at build time. `pandas==2.3.1` declares only `numpy>=1.26.0` on Python 3.12.
+  Run `bash scripts/lock-python-deps.sh` and commit the result before
+  collecting data, which closes this gap.
 - **Half of each host is idle.** `c6i.large` has 2 vCPUs and the container is
   capped at 1, because no 1-vCPU non-burstable type exists. Results therefore
   describe an application confined to one vCPU on an otherwise unloaded host,
@@ -253,9 +616,13 @@ with empty Prometheus scrape targets for the csv and thumbnail suites.
 - **One region, and however many repetitions were performed.** All numbers come
   from ap-northeast-1. A single run per configuration supports no claim about
   variance.
-- **Lambda is not behind the ALB.** It is reached through Function URLs, so its
-  network path differs from EC2 and ECS. Server-side metrics exclude this
-  difference; client-side latency does not.
+- **The ALB terminates HTTP, not HTTPS.** No domain is registered, so no ACM
+  certificate is issued and the listener serves plain HTTP on port 80, with the
+  target groups selected by `Host` header against a `bench.local` suffix. TLS
+  cost is therefore absent from every measurement. Because
+  `lambda_behind_alb = true` puts all three platforms behind the same listener,
+  it is absent *equally*, so the comparison is unaffected — but absolute
+  latencies are not what a TLS-terminating deployment would show.
 
 ## Where to look
 

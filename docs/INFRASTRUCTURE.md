@@ -14,7 +14,7 @@ Same VPC for all components so differences come from the compute model (EC2, ECS
 ## Design goals
 
 1. Equivalent conditions for three apps on three compute models
-2. External access uses HTTPS managed by AWS when DNS and ACM are configured (ALB + ACM for EC2/ECS; Function URL for Lambda)
+2. External access uses HTTPS managed by AWS when DNS and ACM are configured (one ALB + ACM for all three platforms; Function URLs stay published for `/metrics`)
 3. Isolation between apps (separate EC2 instances, ECS services, Lambda functions)
 4. **One** Application Load Balancer for all EC2 and ECS backends
 5. **One** ECS cluster with three services (scale idle services to 0 during focused runs)
@@ -25,13 +25,13 @@ Same VPC for all components so differences come from the compute model (EC2, ECS
 
 | Component | Configuration |
 |-----------|----------------|
-| VPC | Single VPC for EC2, ECS, Lambda (when VPC attached), RDS |
+| VPC | Single VPC for EC2, ECS, **all three Lambda functions**, and RDS |
 | Availability | Three AZs for ALB and ECS capacity |
 | ALB | One internet facing ALB, IPv4 |
 | TLS on ALB | One ACM certificate (DNS validation), one TLS policy on HTTPS 443 |
 | HTTP | Listener on 80; redirects to HTTPS when a certificate is set |
 | Without domain | ALB can run HTTP only until `domain_name` and `route53_zone_id` are set |
-| Lambda edge | Function URL only (AWS managed HTTPS; not behind the ALB) |
+| Lambda edge | Registered as an ALB target when `lambda_behind_alb = true`, so all three platforms share one entrypoint; the Function URL stays published for `/metrics` scrapes |
 | DNS | Route 53 aliases for EC2/ECS hostnames to the single ALB |
 
 ### HTTPS by platform
@@ -40,7 +40,12 @@ Same VPC for all components so differences come from the compute model (EC2, ECS
 |----------|------|
 | EC2 | Client to ALB (ACM) to HTTP on the instance |
 | ECS on EC2 | Client to the **same** ALB to HTTP on the task |
-| Lambda | Client to Function URL (AWS TLS) to the function |
+| Lambda | Client to the **same** ALB (ACM) to the function, when `lambda_behind_alb = true` |
+
+TLS is terminated by the ALB in all three cases, so no application ever pays
+handshake or encryption cost. Sending the three platforms through one entrypoint
+is what keeps the request path identical; the Function URL remains available as
+a second, unmeasured entrypoint for `/metrics`.
 
 ### Layer 7 routing (EC2 and ECS)
 
@@ -58,18 +63,25 @@ Clients (HTTPS)
   :3000 / :3001 / :8000
 
 Lambda:
-Clients (HTTPS) --> Function URL --> Lambda
+Lambda TGs (per app)  -- same ALB, host-based rules
+(Function URL stays published, used only for /metrics scrapes)
 ```
 
 ### Hostnames (examples)
 
 Set `domain_name` in Terraform. Artillery and Prometheus targets stay placeholders until apply.
 
-| App | EC2 | ECS | Lambda |
-|-----|-----|-----|--------|
-| AniLove | `anilove-ec2.<domain>` | `anilove-ecs.<domain>` | Function URL |
-| CSV | `csv-processor-ec2.<domain>` | `csv-processor-ecs.<domain>` | Function URL |
-| Thumbnail | `thumbnail-generator-ec2.<domain>` | `thumbnail-ecs.<domain>` | Function URL |
+DNS labels are short and uniform, `<label>-<platform>.<domain>`, and all nine
+are covered by the single `*.<domain>` wildcard certificate.
+
+| App | Label | EC2 | ECS | Lambda |
+|-----|-------|-----|-----|--------|
+| AniLove | `anilove` | `anilove-ec2.<domain>` | `anilove-ecs.<domain>` | `anilove-lambda.<domain>` |
+| CSV | `csv` | `csv-ec2.<domain>` | `csv-ecs.<domain>` | `csv-lambda.<domain>` |
+| Thumbnail | `thumb` | `thumb-ec2.<domain>` | `thumb-ecs.<domain>` | `thumb-lambda.<domain>` |
+
+The Lambda hostnames exist only when `lambda_behind_alb = true`. The Function
+URLs stay published either way and remain the endpoint Prometheus scrapes.
 
 | App | Port |
 |-----|------|
@@ -85,7 +97,7 @@ Health checks: `GET /health` on each EC2 and ECS target group.
 
 | Aspect | Value |
 |--------|--------|
-| Class | `db.t4g.micro` (default in Terraform) |
+| Class | `db.m6g.large` (non-burstable; see below) |
 | Engine | PostgreSQL (version pin in variables) |
 | Storage | 20 GiB gp3 (default) |
 | Placement | Private subnets |
@@ -167,6 +179,29 @@ current-generation x86 instance that is not burstable — AWS offers no 1-vCPU
 non-burstable type — so half of each host is deliberately left idle and the
 container is capped at 1 vCPU to match the ECS task and Lambda.
 
+### The database follows the same rule
+
+Problem 2 above applies to the database too, and it matters more there than
+anywhere else: RDS is shared by all three platforms and sits in the critical
+path of AniLove, the only I/O-bound workload, whose headline result is the split
+between application time and database wait. A burstable database would let the
+credit balance at the start of a run leak straight into that number.
+
+`db.t4g.micro` was therefore replaced with `db.m6g.large` (2 vCPU Graviton2,
+8 GiB, non-burstable). Two side effects, both wanted:
+
+- **Performance Insights becomes available.** It is not supported on
+  `db.t3`/`db.t4g` micro and small classes. It is now enabled with the free
+  7-day retention, so database CPU, connections and top SQL can be reported per
+  run instead of assumed.
+- **Connection headroom.** `max_connections` scales with memory: roughly 112 on
+  `db.t4g.micro` against roughly 900 here. With a Sequelize pool of 20 per
+  platform this was never going to bind at the calibrated rates, but it removes
+  the ceiling as something to think about.
+
+The cost is $0.221/hour against $0.025, about $1.50 over the whole five-run
+protocol. `make validate-tf` fails if a `db.t*` class is configured.
+
 ### Using burstable types anyway
 
 Cheap smoke tests do not need `c6i.large`. Set the types back in
@@ -192,8 +227,9 @@ types are configured and fails if `cpu_credits` is left unset.
 | Concurrency | `reserved_concurrent_executions = 1`, matching one EC2 container and one ECS task; `-1` removes the cap |
 | Timeout | 30 s |
 | Architecture | x86_64 |
-| HTTPS | Function URL only |
-| AniLove | VPC attached for private RDS; secrets injected |
+| HTTPS | Shared ALB when `lambda_behind_alb = true`; Function URL always published for `/metrics` |
+| VPC | **All three** functions attached to the private subnets, not only the one that reaches RDS, so network placement does not vary between platforms or workloads. Requires `AWSLambdaVPCAccessExecutionRole` on every function role |
+| AniLove | Secrets injected for RDS access |
 | CSV | Python 3.12 + Mangum |
 | Thumbnail / AniLove | Node.js 22 + serverless express |
 
@@ -205,7 +241,7 @@ types are configured and fails if `cpu_credits` is left unset.
 | ECS | One cluster; task 1024 CPU / 1024 MiB; same ALB |
 | Lambda | 1769 MB (one full vCPU); Function URL |
 | TLS | One ACM cert + TLS policy on ALB (when domain set) |
-| RDS | One `db.t4g.micro`; schemas `ec2` / `ecs` / `lambda` |
+| RDS | One `db.m6g.large`; schemas `ec2` / `ecs` / `lambda` |
 
 ## Security groups
 

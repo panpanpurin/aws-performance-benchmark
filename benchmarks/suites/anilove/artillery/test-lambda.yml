@@ -1,6 +1,13 @@
-# Lambda Function URL (synced from terraform outputs)
 config:
   target: "https://REPLACE_ME"
+  # ------------------------------------------------------------
+  # WARNING: rates below are unverified. They date from the retired
+  # t2.micro / t3.small hardware and have not been re-derived for the
+  # current one-worker-per-platform setup, so they run above the
+  # saturation ceiling. Run the pilot (make pilot-configs, then
+  # make pilot-<suite>) and set the phases from the measured ceiling.
+  # See docs/PAPER-SSCAD-2026.md.
+  # ------------------------------------------------------------
   phases:
     # Phase 1 - Warm-up:
     # Gradually warms the environments without pressure.
@@ -11,14 +18,15 @@ config:
 
     # Phase 2 - Primary Soak (steady-state load):
     # Maintains a realistic constant load to observe long-term behavior.
-    # Ideal to reveal Lambda steady latency, ECS CPU/memory equilibrium, and EC2 CPU credit consumption over time.
+    # Ideal to reveal steady-state latency once caches and JIT have settled on each platform.
     # This phase is crucial to compare environments under sustained, non-burst conditions.
     - duration: 600        # 10 minutes
       arrivalRate: 20
 
     # Phase 3 - Stress Peak:
     # Pushes the environments to higher pressure to expose bottlenecks.
-    # Used to analyze how Lambda throttles, how ECS reacts under CPU pressure, and when EC2 t2.micro collapses due to credit depletion.
+    # Used to analyze how Lambda rejects with HTTP 429 at reserved concurrency 1,
+    # while EC2 and ECS queue instead and degrade in latency.
     # Reveals p95/p99 degradation patterns beyond normal workloads.
     - duration: 360        # 6 minutes
       arrivalRate: 50
@@ -26,15 +34,16 @@ config:
     # Phase 4 - Recovery + Secondary Soak:
     # Returns the load to the same level as the first soak to observe recovery behavior.
     # Validates if latencies return to pre-stress levels or if any environment remains degraded.
-    # Critical to detect lingering resource exhaustion (especially EC2 CPU credits).
+    # Critical to detect whether any platform remains degraded after the peak.
     - duration: 600        # 10 minutes
       arrivalRate: 20
 
   defaults:
     headers:
       Content-Type: application/json
+      Host: anilove-lambda.bench.local
     http:
-      timeout: 60         
+      timeout: 60
 
   plugins:
     publish-metrics:

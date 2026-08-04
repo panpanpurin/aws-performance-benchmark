@@ -1,55 +1,51 @@
-# ALB + Host header (synced from terraform outputs)
 config:
   target: "https://REPLACE_ME"
   processor: "./processor.js"
 
   # ============================================================
-  # Load test phases for CSV processor (same config for:
-  # - Lambda (1024 MB memory / 1024 MB ephemeral)
-  # - EC2 t2.micro
-  # - ECS task on t3.small (1 vCPU, 1 GB hard / 512 MB soft)
-  # Goal: highlight differences without instantly killing t2.micro
+  # Load test phases for CSV processor. Identical across platforms:
+  # - EC2: c6i.large host, container capped at 1 vCPU / 1024 MB
+  # - ECS: task 1024 CPU units (1 vCPU) / 1024 MB on a c6i.large
+  # - Lambda: 1769 MB (one full vCPU), reserved concurrency 1
+  # Every platform serves with exactly one 1-vCPU worker.
   # ============================================================
   phases:
-    # ----------------------------------------------------------
-    # Phase 1: Warm-up
-    # Light traffic to warm the app, JIT, caches, and Lambda.
-    # All environments should handle this with very low latency.
-    # ----------------------------------------------------------
-    - duration: 240          # 4 minutes
-      arrivalRate: 16
+  # Measured service time, 2026-08-04: EC2 14.39 ms, ECS 15.02 ms,
+  # Lambda 22.73 ms -> ceilings 69 / 67 / 44 req/s. Lambda binds.
+  #
+  # arrivalCount, not arrivalRate: arrivalRate starts N virtual users at the same
+  # instant each second, which a Lambda sandbox at concurrency 1 cannot absorb.
+  # At 12 req/s: 234 HTTP 502s with arrivalRate, 3 with arrivalCount.
+  #
+  # No phase crosses a ceiling. Saturation is Experiment B, run per platform.
+  # One request per arrival, so arrivals == requests.
 
-    # ----------------------------------------------------------
-    # Phase 2: Baseline steady load
-    # Represents a realistic "normal" load.
-    # t2.micro should be under pressure but still mostly stable;
-    # t3.small and Lambda should show clearly better latency.
-    # ----------------------------------------------------------
-    - duration: 600          # 10 minutes
-      arrivalRate: 20
+    # Warm-up at the primary rate. Warming lower leaves a step change whose
+    # transient falls inside the reported window. Discarded.
+    - duration: 180
+      arrivalCount: 3600
 
-    # ----------------------------------------------------------
-    # Phase 3: Stress peak
-    # Push the system beyond comfortable capacity.
-    # t2.micro is expected to show higher latency and possible errors;
-    # t3.small may degrade but still survive; Lambda should handle
-    # this better, with some tail latency under burst.
-    # ----------------------------------------------------------
-    - duration: 360          # 6 minutes
-      arrivalRate: 28
+    # Probe, 5 req/s (7% EC2/ECS, 11% Lambda) - shapes the latency-vs-load curve.
+    - duration: 240
+      arrivalCount: 1200
 
-    # ----------------------------------------------------------
-    # Phase 4: Recovery / light soak
-    # Go back to a moderate load after stress.
-    # Used to observe if latency/concurrency returns to normal
-    # or if the system remains degraded (e.g., CPU throttling on t2.micro).
-    # ----------------------------------------------------------
-    - duration: 720          # 12 minutes
-      arrivalRate: 18
+    # Probe, 10 req/s (14% / 23%).
+    - duration: 240
+      arrivalCount: 2400
+
+    # Primary operating point, 20 req/s (29% / 45%). Source of every reported
+    # latency figure; 14400 requests so the P99 has ~144 tail samples.
+    - duration: 720
+      arrivalCount: 14400
+
+    # Probe, 30 req/s (43% / 68%). Closest approach to Lambda's ceiling; any
+    # throttling here is a result, not a misconfiguration.
+    - duration: 240
+      arrivalCount: 7200
 
   defaults:
     headers:
-      Host: csv-processor-ec2.bench.local
+      Host: csv-ec2.bench.local
     http:
       timeout: 60
 

@@ -4,8 +4,8 @@ What this stack costs to run in **ap-northeast-1 (Tokyo)**, and which parts
 dominate the bill.
 
 Summary: a full benchmark sweep across all three suites consumes about **$0.39**
-of Lambda compute, and one apply-measure-destroy session costs about **$7.30**.
-Leaving the same stack running for a month would cost about **$591**, because
+of Lambda compute, and one apply-measure-destroy session costs about **$8.87**.
+Leaving the same stack running for a month would cost about **$734**, because
 non-burstable instances bill by the hour whether or not a test is running. The
 stack is designed to be applied, measured, and destroyed.
 
@@ -40,7 +40,8 @@ aws pricing get-products --region us-east-1 --service-code AmazonEC2 \
 | EBS `gp3` | $0.096 / GB-month |
 | NAT gateway | $0.062 / hour + $0.062 / GB processed |
 | ALB | $0.0243 / hour + $0.008 / LCU-hour |
-| RDS `db.t4g.micro` PostgreSQL, Single-AZ | $0.025 / hour |
+| RDS `db.m6g.large` PostgreSQL, Single-AZ | $0.221 / hour |
+| RDS `db.t4g.micro` (burstable, no longer used) | $0.025 / hour |
 | RDS `gp3` storage | $0.138 / GB-month |
 | Public IPv4 address, in use | $0.005 / hour |
 | Lambda compute | $0.0000166667 / GB-second |
@@ -60,7 +61,8 @@ From `terraform/`, with the committed `terraform.tfvars`:
 - 3 EC2 app instances (`c6i.large`, one per app), private subnets, 20 GB gp3 each;
   each app container is capped at 1 vCPU / 1024 MB to match the ECS task
 - 1 ECS cluster on an ASG of `c6i.large`, 30 GB gp3 each
-- 1 RDS `db.t4g.micro`, 20 GB gp3, Single-AZ, 1-day backup retention
+- 1 RDS `db.m6g.large` (non-burstable), 20 GB gp3, Single-AZ, 1-day backup
+  retention, Performance Insights on the free 7-day tier
 - 3 Lambda functions, 1769 MB (one full vCPU), container image, Function URLs
 - 6 ECR images (3 apps x EC2/ECS + Lambda variants), 2 secrets, 9 log groups
 
@@ -121,21 +123,21 @@ The intended lifecycle. Hourly burn with the full stack up:
 | ECS, 3x `c6i.large` | 0.3210 |
 | NAT gateway | 0.0620 |
 | EC2 apps, 3x `c6i.large` | 0.3210 |
-| RDS | 0.0250 |
+| RDS `db.m6g.large` | 0.2210 |
 | ALB | 0.0243 |
 | Public IPv4, 4 addresses | 0.0200 |
 | EBS, 150 GB gp3 amortised | 0.0197 |
-| **Total** | **≈ 0.7930** |
+| **Total** | **≈ 0.9890** |
 
 A full session (apply, push images, three 32-minute suites, teardown) is
 roughly 8 hours of uptime:
 
 | | $ |
 |---|---|
-| 8 hours of stack | 6.34 |
+| 8 hours of stack | 7.91 |
 | Lambda, full sweep | 0.36 |
 | CloudWatch Logs + NAT data | ~0.60 |
-| **Per session** | **≈ 7.30** |
+| **Per session** | **≈ 8.87** |
 
 After `make destroy`, only the bootstrap state backend survives, well under
 $0.50/month. `make destroy` also removes the ECR repositories, so the next
@@ -194,7 +196,9 @@ invalidates the benchmark. `make validate-fairness` checks for exactly this.
 ## Free tier
 
 Free tier is close to irrelevant here. It covers 750 hours of
-`t2.micro`/`t3.micro`, 750 hours of `db.t4g.micro`, 1M Lambda requests and
+`t2.micro`/`t3.micro`, 750 hours of `db.t4g.micro` (which this stack no longer
+uses, since a burstable database would make repeated runs non-comparable),
+1M Lambda requests and
 400,000 GB-seconds per month, but **`c6i.large` is not free-tier eligible**, so
 the largest line item (79% of Scenario A) is billed in full. NAT gateway, ALB
 and public IPv4 addresses are not covered either. Only RDS and part of the

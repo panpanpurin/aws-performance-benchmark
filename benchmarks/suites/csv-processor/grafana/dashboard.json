@@ -22,6 +22,102 @@
   "links": [],
   "panels": [
     {
+      "type": "stat",
+      "title": "Mode: which experiment produced this data",
+      "description": "Reserved concurrency as deployed. 1 = Experiment A, Lambda runs one sandbox and its app_* panels are valid. -1 = Experiment B, many sandboxes, each with its own registry: read Lambda from the CloudWatch row instead.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "id": 35,
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "EXPERIMENT A - capped (=1) - app_* valid for Lambda",
+                  "color": "green",
+                  "index": 0
+                }
+              }
+            },
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "EXPERIMENT B - UNCAPPED - Lambda app_* NOT valid, use CloudWatch",
+                  "color": "orange",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": 0
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "lambda_reserved_concurrency",
+          "legendFormat": "",
+          "range": true,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Experiment A - application metrics (Lambda valid ONLY when capped = 1)",
+      "id": 36,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "collapsed": false,
+      "panels": []
+    },
+    {
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -78,7 +174,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "ms"
         },
         "overrides": []
       },
@@ -86,7 +183,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 0
+        "y": 5
       },
       "id": 13,
       "options": {
@@ -178,7 +275,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "ms"
         },
         "overrides": []
       },
@@ -186,7 +284,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 0
+        "y": 5
       },
       "id": 17,
       "options": {
@@ -278,7 +376,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "ms"
         },
         "overrides": []
       },
@@ -286,7 +385,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 8
+        "y": 13
       },
       "id": 23,
       "options": {
@@ -378,7 +477,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "ms"
         },
         "overrides": []
       },
@@ -386,7 +486,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 8
+        "y": 13
       },
       "id": 18,
       "options": {
@@ -478,7 +578,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "ms"
         },
         "overrides": []
       },
@@ -486,7 +587,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 16
+        "y": 21
       },
       "id": 12,
       "options": {
@@ -578,7 +679,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "ms"
         },
         "overrides": []
       },
@@ -586,7 +688,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 16
+        "y": 21
       },
       "id": 19,
       "options": {
@@ -678,7 +780,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "decmbytes"
         },
         "overrides": []
       },
@@ -686,107 +789,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 24
-      },
-      "id": 3,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.2.1",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "avg by (service) (\r\n  avg_over_time(app_cpu_usage_percent[5m])\r\n)",
-          "hide": false,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "C"
-        }
-      ],
-      "title": "CPU usage APP (%) - AVG",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 24
+        "y": 29
       },
       "id": 27,
       "options": {
@@ -878,107 +881,8 @@
                 "value": 80
               }
             ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 32
-      },
-      "id": 26,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.2.1",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
           },
-          "editorMode": "code",
-          "expr": "max by (service) (\r\n  max_over_time(app_cpu_peak_percent[5m])\r\n)",
-          "hide": false,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "B"
-        }
-      ],
-      "title": "CPU usage APP (%) - PEAK",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
+          "unit": "decmbytes"
         },
         "overrides": []
       },
@@ -986,7 +890,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 32
+        "y": 29
       },
       "id": 28,
       "options": {
@@ -1078,7 +982,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "ms"
         },
         "overrides": []
       },
@@ -1086,9 +991,9 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 40
+        "y": 37
       },
-      "id": 20,
+      "id": 29,
       "options": {
         "legend": {
           "calcs": [],
@@ -1105,109 +1010,33 @@
       "pluginVersion": "12.2.1",
       "targets": [
         {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "editorMode": "code",
-          "expr": "avg_over_time((\r\n  100 * (\r\n    1 -\r\n    sum by (service)(rate(node_cpu_seconds_total{mode=\"idle\"}[1m])) /\r\n    sum by (service)(rate(node_cpu_seconds_total[1m]))\r\n  )\r\n)[$__range:])",
-          "legendFormat": "__auto",
+          "expr": "1000 * (\n  sum by (service) (rate(app_cpu_seconds_total[5m]))\n  /\n  sum by (service) (rate(app_total_execution_time_seconds_count[5m]))\n)\nand sum by (service) (rate(app_total_execution_time_seconds_count[5m])) > 0.5",
+          "legendFormat": "{{service}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Total CPU (%) - INFRA",
-      "type": "timeseries"
+      "title": "CPU per request (ms of CPU) - the paper's CPU metric",
+      "type": "timeseries",
+      "description": "CPU milliseconds per served request. Numerator and denominator cover the same window, so it is unaffected by sandbox freezing or concurrency. Valid in Experiment A; read Lambda from CloudWatch in Experiment B. No data while idle, by design."
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
+      "type": "row",
+      "title": "Client-side from Artillery (both modes; published at end of run, so stale during one)",
+      "id": 37,
       "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 40
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 45
       },
-      "id": 21,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.2.1",
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "avg_over_time((\r\n  sum by (service) (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes)\r\n)[$__range:]) / 1024 / 1024",
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Total RAM (mb) - INFRA",
-      "type": "timeseries"
+      "collapsed": false,
+      "panels": []
     },
     {
       "datasource": {
@@ -1266,7 +1095,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "ms"
         },
         "overrides": []
       },
@@ -1274,195 +1104,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 48
-      },
-      "id": 24,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.2.1",
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "max_over_time((\r\n  100 * (\r\n    1 -\r\n    sum by (service)(rate(node_cpu_seconds_total{mode=\"idle\"}[1m]))\r\n    /\r\n    sum by (service)(rate(node_cpu_seconds_total[1m]))\r\n  )\r\n)[$__range:])",
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Total CPU PEAK (%) - INFRA",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 48
-      },
-      "id": 25,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.2.1",
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "max_over_time((\r\n  sum by (service) (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes)\r\n)[$__range:]) / 1024 / 1024",
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Total RAM (mb) PEAK - INFRA",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 56
+        "y": 46
       },
       "id": 14,
       "options": {
@@ -1489,7 +1131,8 @@
         }
       ],
       "title": "Communication Latency (ms) - AVG (http.response_time)",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "Client-side, from the Artillery JSON report published at the end of the run. A pushgateway holds only the last pushed value, so this is a run-level aggregate, not a time series."
     },
     {
       "datasource": {
@@ -1548,7 +1191,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "reqps"
         },
         "overrides": []
       },
@@ -1556,7 +1200,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 56
+        "y": 46
       },
       "id": 6,
       "options": {
@@ -1583,7 +1227,8 @@
         }
       ],
       "title": "Throughput (req/s) - (http.request_rate)",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "Client-side, from the Artillery JSON report published at the end of the run. A pushgateway holds only the last pushed value, so this is a run-level aggregate, not a time series."
     },
     {
       "datasource": {
@@ -1642,7 +1287,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "ms"
         },
         "overrides": []
       },
@@ -1650,7 +1296,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 64
+        "y": 54
       },
       "id": 15,
       "options": {
@@ -1677,7 +1323,8 @@
         }
       ],
       "title": "Communication Latency (ms) - P95 (http.response_time)",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "Client-side, from the Artillery JSON report published at the end of the run. A pushgateway holds only the last pushed value, so this is a run-level aggregate, not a time series."
     },
     {
       "datasource": {
@@ -1736,7 +1383,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "ms"
         },
         "overrides": []
       },
@@ -1744,7 +1392,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 64
+        "y": 54
       },
       "id": 16,
       "options": {
@@ -1771,7 +1419,8 @@
         }
       ],
       "title": "Communication Latency (ms) - P99 (http.response_time)",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "Client-side, from the Artillery JSON report published at the end of the run. A pushgateway holds only the last pushed value, so this is a run-level aggregate, not a time series."
     },
     {
       "datasource": {
@@ -1830,7 +1479,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "percent"
         },
         "overrides": []
       },
@@ -1838,7 +1488,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 72
+        "y": 62
       },
       "id": 7,
       "options": {
@@ -1858,14 +1508,15 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "100 * (1 - (\r\n  sum(artillery_summaries{metric=\"http_response_time_2xx_count\"}) by (service)\r\n  /\r\n  sum(artillery_summaries{metric=\"http_response_time_count\"}) by (service)\r\n))",
+          "expr": "100 * (\n  sum(artillery_summaries{metric=\"http_response_time_4xx_count\"}) by (service)\n  /\n  clamp_min(sum(artillery_summaries{metric=\"http_response_time_count\"}) by (service), 1)\n)",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
         }
       ],
       "title": "HTTP Error Rate 4xx (%)",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "Genuine 4xx responses only. Client-side, from the Artillery JSON report published at the end of the run. A pushgateway holds only the last pushed value, so this is a run-level aggregate, not a time series."
     },
     {
       "datasource": {
@@ -1924,7 +1575,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "percent"
         },
         "overrides": []
       },
@@ -1932,7 +1584,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 72
+        "y": 62
       },
       "id": 8,
       "options": {
@@ -1952,18 +1604,18 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "100 * (\r\n  1 - (\r\n    sum(artillery_summaries{metric=\"http_response_time_2xx_count\"}) by (service)\r\n    /\r\n    sum(artillery_summaries{metric=\"http_response_time_count\"}) by (service)\r\n  )\r\n)",
+          "expr": "100 * (\n  sum(artillery_summaries{metric=\"http_response_time_5xx_count\"}) by (service)\n  /\n  clamp_min(sum(artillery_summaries{metric=\"http_response_time_count\"}) by (service), 1)\n)",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
         }
       ],
       "title": "HTTP Error Rate 5xx (%)",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "Genuine 5xx responses only. A throttled Lambda behind an ALB returns 502, so Experiment A throttling appears here rather than in the 4xx panel. Client-side, from the Artillery JSON report published at the end of the run. A pushgateway holds only the last pushed value, so this is a run-level aggregate, not a time series."
     },
     {
       "datasource": {
-        "type": "prometheus",
         "uid": "prometheus"
       },
       "fieldConfig": {
@@ -2018,7 +1670,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "percent"
         },
         "overrides": []
       },
@@ -2026,100 +1679,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 80
-      },
-      "id": 9,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.2.1",
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "100 * (\r\n  1 - (\r\n    sum(artillery_summaries{metric=\"http_response_time_2xx_count\"}) by (service)\r\n    /\r\n    sum(artillery_summaries{metric=\"http_response_time_count\"}) by (service)\r\n  )\r\n)\r\n",
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Failure rate per invocation (%)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 80
+        "y": 70
       },
       "id": 10,
       "options": {
@@ -2146,14 +1706,28 @@
         }
       ],
       "title": "Availability (%)",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "Client-side, from the Artillery JSON report published at the end of the run. A pushgateway holds only the last pushed value, so this is a run-level aggregate, not a time series."
+    },
+    {
+      "type": "row",
+      "title": "Experiment B - Lambda from CloudWatch (authoritative in BOTH modes)",
+      "id": 38,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 78
+      },
+      "collapsed": false,
+      "panels": []
     },
     {
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "",
+      "description": "Init Duration from the Lambda REPORT line in CloudWatch Logs. The in-app histogram cannot be used: it lives in sandbox memory and is lost when the sandbox is recycled. Run-level aggregate.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2206,7 +1780,9 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "ms",
+          "decimals": 0
         },
         "overrides": []
       },
@@ -2214,7 +1790,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 88
+        "y": 79
       },
       "id": 22,
       "options": {
@@ -2233,15 +1809,416 @@
       "pluginVersion": "12.2.1",
       "targets": [
         {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "editorMode": "code",
-          "expr": "(\r\n  increase(app_cold_start_duration_seconds_sum{environment=\"production\"}[30m])\r\n/\r\n  clamp_min(\r\n    increase(app_cold_start_duration_seconds_count{environment=\"production\"}[30m]),\r\n    1\r\n  )\r\n)",
-          "legendFormat": "__auto",
+          "expr": "lambda_cold_start_duration_ms",
+          "legendFormat": "{{stat}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Cold Start (ms) - Lambda",
+      "title": "Cold Start (ms) - Lambda [CloudWatch]",
       "type": "timeseries"
+    },
+    {
+      "type": "stat",
+      "title": "Cold starts observed (n) - Lambda [CloudWatch]",
+      "description": "Cold starts counted in CloudWatch Logs over the publishing window. Report beside the cold-start figures; thresholds mark the paper's floor of 3.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "id": 30,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 79
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": 0
+              },
+              {
+                "color": "orange",
+                "value": 3
+              },
+              {
+                "color": "green",
+                "value": 10
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "lambda_cold_start_count",
+          "legendFormat": "n",
+          "range": true,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 87
+      },
+      "id": 31,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.2.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "lambda_cw_duration_ms",
+          "legendFormat": "{{stat}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Lambda Duration [CloudWatch] (ms)",
+      "type": "timeseries",
+      "description": "Execution time as Lambda reports it, avg / p95 / max. From CloudWatch, which aggregates across sandboxes. Run-level aggregate."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 87
+      },
+      "id": 32,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.2.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "{__name__=~\"lambda_cw_(throttles|errors)\"}",
+          "legendFormat": "{{__name__}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Lambda Throttles and Errors [CloudWatch]",
+      "type": "timeseries",
+      "description": "Throttles are rejected invocations, which surface as HTTP 502 behind the ALB; Errors are function failures. The client-side 5xx panel cannot tell them apart. From CloudWatch, which aggregates across sandboxes. Run-level aggregate."
+    },
+    {
+      "type": "stat",
+      "title": "Lambda peak concurrency [CloudWatch]",
+      "description": "Highest number of sandboxes running at once. EC2 and ECS hold one worker each, so a peak of N means Lambda had roughly N times their capacity. Also the flag for whether Lambda's app_* panels are trustworthy: 1 yes, above 1 no. From CloudWatch, which aggregates across sandboxes. Run-level aggregate.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "id": 33,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 95
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "lambda_cw_concurrency_max",
+          "legendFormat": "",
+          "range": true,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Lambda invocations [CloudWatch]",
+      "description": "Total invocations counted by Lambda, including /metrics scrapes. From CloudWatch, which aggregates across sandboxes. Run-level aggregate.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "id": 34,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 95
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "lambda_cw_invocations",
+          "legendFormat": "",
+          "range": true,
+          "refId": "A"
+        }
+      ]
     }
   ],
   "preload": false,

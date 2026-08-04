@@ -1,7 +1,14 @@
-# Lambda Function URL (synced from terraform outputs)
 config:
   target: "https://REPLACE_ME"
   processor: "./upload-image.js"
+  # ------------------------------------------------------------
+  # WARNING: rates below are unverified. They date from the retired
+  # t2.micro / t3.small hardware and have not been re-derived for the
+  # current one-worker-per-platform setup, so they run above the
+  # saturation ceiling. Run the pilot (make pilot-configs, then
+  # make pilot-<suite>) and set the phases from the measured ceiling.
+  # See docs/PAPER-SSCAD-2026.md.
+  # ------------------------------------------------------------
   phases:
     # Phase 1 - Warm-up
     # Gradually introduces load to warm up the environment and avoid cold-start effects.
@@ -29,8 +36,10 @@ config:
       arrivalRate: 6  # 6 requests per second (light, sustained load)
   
   defaults:
+    headers:
+      Host: thumb-lambda.bench.local
     http:
-      timeout: 60         
+      timeout: 60
 
   plugins:
     publish-metrics:
