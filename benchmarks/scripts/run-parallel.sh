@@ -2,16 +2,29 @@
 # Shared parallel Artillery runner for EC2 + ECS + Lambda.
 #
 #   ./benchmarks/scripts/run-parallel.sh anilove
+#   ./benchmarks/scripts/run-parallel.sh anilove pilot   # short, under-saturated
 #   make artillery-anilove
 #
 # Prerequisite: metrics stack up (make bench-anilove, etc.)
+#
+# Pilot mode runs pilot-*.yml: a short run below the ceiling to measure service
+# time before committing to a full schedule. See scripts/make-pilot-configs.sh.
 set -euo pipefail
 
 SUITE="${1:-}"
+MODE="${2:-test}"
 if [[ -z "$SUITE" ]]; then
-  echo "Usage: $0 <anilove|csv-processor|thumbnail-generator>" >&2
+  echo "Usage: $0 <anilove|csv-processor|thumbnail-generator> [pilot]" >&2
   exit 1
 fi
+case "$MODE" in
+  test)  PREFIX="test" ;;
+  pilot) PREFIX="pilot" ;;
+  *)
+    echo "Unknown mode: $MODE (expected 'pilot' or nothing)" >&2
+    exit 1
+    ;;
+esac
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -78,8 +91,23 @@ export NPM_CONFIG_LOGLEVEL=error
 export NPM_CONFIG_UPDATE_NOTIFIER=false
 
 cd "$ART_DIR"
-for f in test-ec2.yml test-ecs.yml test-lambda.yml; do
-  [[ -f "$f" ]] || { echo "Missing: $f" >&2; exit 1; }
+
+# form-data is declared in a package.json next to the processors but nothing
+# installs it; without it all three die at processor.js with MODULE_NOT_FOUND.
+if [[ -f package.json && ! -d node_modules ]]; then
+  echo "Installing Artillery helper dependencies for $SUITE ..."
+  npm install --no-audit --no-fund --loglevel=error || {
+    echo "ERROR: npm install failed in $ART_DIR" >&2
+    exit 1
+  }
+fi
+
+for f in "$PREFIX-ec2.yml" "$PREFIX-ecs.yml" "$PREFIX-lambda.yml"; do
+  if [[ ! -f "$f" ]]; then
+    echo "Missing: $f" >&2
+    [[ "$PREFIX" == "pilot" ]] && echo "Generate the pilots first: bash scripts/make-pilot-configs.sh" >&2
+    exit 1
+  fi
 done
 
 mkdir -p logs
@@ -87,7 +115,11 @@ stamp="$(date +%Y%m%d-%H%M%S)"
 trap 'echo; echo "Stopping..."; pkill -P $$ 2>/dev/null || true; wait 2>/dev/null || true; exit 130' INT
 
 echo "========================================"
-echo " $TITLE - parallel EC2 / ECS / Lambda"
+if [[ "$PREFIX" == "pilot" ]]; then
+  echo " $TITLE - PILOT (service-time probe, not a measurement run)"
+else
+  echo " $TITLE - parallel EC2 / ECS / Lambda"
+fi
 echo " Prerequisite: make $MAKE_HINT"
 echo " Prometheus: $PROM"
 echo " Grafana:    $GRAF"
@@ -95,18 +127,22 @@ echo " Pushgateway ECS/EC2/Lambda: $PG"
 echo " Tool:       $ART_RUN"
 echo "========================================"
 echo
-echo "Full phases can take 30+ minutes. Logs: $ART_DIR/logs"
+if [[ "$PREFIX" == "pilot" ]]; then
+  echo "Pilot takes about 7 minutes. Logs: $ART_DIR/logs"
+else
+  echo "Full phases can take 30+ minutes. Logs: $ART_DIR/logs"
+fi
 echo
 
 # shellcheck disable=SC2086
-eval "$ART_RUN test-ec2.yml"    > "logs/ec2-$stamp.log"    2>&1 & pid_ec2=$!
-echo "[EC2]    pid=$pid_ec2    -> logs/ec2-$stamp.log"
+eval "$ART_RUN $PREFIX-ec2.yml"    > "logs/$PREFIX-ec2-$stamp.log"    2>&1 & pid_ec2=$!
+echo "[EC2]    pid=$pid_ec2    -> logs/$PREFIX-ec2-$stamp.log"
 # shellcheck disable=SC2086
-eval "$ART_RUN test-ecs.yml"    > "logs/ecs-$stamp.log"    2>&1 & pid_ecs=$!
-echo "[ECS]    pid=$pid_ecs    -> logs/ecs-$stamp.log"
+eval "$ART_RUN $PREFIX-ecs.yml"    > "logs/$PREFIX-ecs-$stamp.log"    2>&1 & pid_ecs=$!
+echo "[ECS]    pid=$pid_ecs    -> logs/$PREFIX-ecs-$stamp.log"
 # shellcheck disable=SC2086
-eval "$ART_RUN test-lambda.yml" > "logs/lambda-$stamp.log" 2>&1 & pid_lambda=$!
-echo "[LAMBDA] pid=$pid_lambda -> logs/lambda-$stamp.log"
+eval "$ART_RUN $PREFIX-lambda.yml" > "logs/$PREFIX-lambda-$stamp.log" 2>&1 & pid_lambda=$!
+echo "[LAMBDA] pid=$pid_lambda -> logs/$PREFIX-lambda-$stamp.log"
 
 status=0
 wait "$pid_ec2"    || status=$(( status | 1 )); echo "[EC2] finished (check log if errors)."
@@ -116,7 +152,7 @@ wait "$pid_lambda" || status=$(( status | 4 )); echo "[LAMBDA] finished (check l
 if [[ "$status" -ne 0 ]]; then
   echo "One or more failed (bitmask=$status). Tail of logs:" >&2
   for name in ec2 ecs lambda; do
-    f="logs/${name}-$stamp.log"
+    f="logs/$PREFIX-${name}-$stamp.log"
     if [[ -f "$f" ]]; then
       echo "--- $f (last 15 lines) ---" >&2
       tail -n 15 "$f" >&2 || true
@@ -126,4 +162,23 @@ if [[ "$status" -ne 0 ]]; then
 fi
 
 echo
-echo "All parallel tests finished. Open Grafana: $GRAF"
+if [[ "$PREFIX" == "pilot" ]]; then
+  cat <<EOF
+Pilot finished. This is not a measurement run - it exists to size the phases.
+
+In Grafana ($GRAF) or Prometheus ($PROM), over the phase-2 window only
+(skip the first 60 s), read mean service time per platform:
+
+  1000 * sum by (instance) (rate(app_total_execution_time_seconds_sum[2m]))
+       / clamp_min(sum by (instance) (rate(app_total_execution_time_seconds_count[2m])), 1e-9)
+
+Then, using the slowest platform's mean:
+  ceiling = 1000 / mean_ms       steady = 0.65 * ceiling       stress = 1.2-1.5 * ceiling
+
+Set those in test-ec2.yml, test-ecs.yml and test-lambda.yml - identical across
+all three - before the measurement runs. Check the 2xx ratio was ~100% here; if
+it was not, the pilot itself was already saturating and the rate must go lower.
+EOF
+else
+  echo "All parallel tests finished. Open Grafana: $GRAF"
+fi

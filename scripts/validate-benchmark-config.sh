@@ -137,9 +137,16 @@ for suite in "${SUITES[@]}"; do
     fail "EC2 and ECS point at different ALBs ($alb_ec2 vs $alb_ecs) - only the Host header should differ"
   fi
   # Only meaningful once the placeholder has been replaced; an unfilled target
-  # is already reported above.
-  if [[ -n "$lam_url" && "$lam_url" != *REPLACE_ME* && "$lam_url" != *lambda-url* ]]; then
-    fail "test-lambda.yml target is not a Function URL: $lam_url"
+  # is already reported above. With lambda_behind_alb the function is reached
+  # through the shared ALB, so the target is the ALB and not a Function URL.
+  if [[ -n "$lam_url" && "$lam_url" != *REPLACE_ME* ]]; then
+    if lambda_is_behind_alb; then
+      if [[ -n "$alb_ec2" && "$lam_url" != "$alb_ec2" ]]; then
+        fail "lambda_behind_alb is on but test-lambda.yml points at $lam_url, not the ALB ($alb_ec2)"
+      fi
+    elif [[ "$lam_url" != *lambda-url* ]]; then
+      fail "test-lambda.yml target is not a Function URL: $lam_url"
+    fi
   fi
 
   # -- Host headers: the ALB routes by hostname, so EC2/ECS need distinct ones --
@@ -156,8 +163,17 @@ for suite in "${SUITES[@]}"; do
   else
     ok "Host headers distinct ($host_ec2 / $host_ecs)"
   fi
-  if [[ -n "$host_lambda" ]]; then
-    warn "test-lambda.yml sets a Host header - Lambda uses Function URLs, not the ALB"
+
+  if lambda_is_behind_alb; then
+    if [[ -z "$host_lambda" ]]; then
+      fail "lambda_behind_alb is on but test-lambda.yml has no Host header - ALB cannot route it"
+    elif [[ "$host_lambda" == "$host_ec2" || "$host_lambda" == "$host_ecs" ]]; then
+      fail "Lambda shares Host '$host_lambda' with another platform - loads would collide"
+    else
+      ok "Lambda Host distinct ($host_lambda), routed through the shared ALB"
+    fi
+  elif [[ -n "$host_lambda" ]]; then
+    warn "test-lambda.yml sets a Host header but lambda_behind_alb is off - Lambda uses its Function URL"
   fi
 
   # -- Pushgateway ports: a port belonging to another suite sends this suite's

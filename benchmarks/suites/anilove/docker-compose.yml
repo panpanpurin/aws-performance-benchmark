@@ -1,6 +1,6 @@
 # AniLove suite: ports 9090 / 3002 / 9092-9094
 # App metric scrapes go through host.docker.internal:18080/18081
-# (run: node scripts/anilove-metrics-proxy.js for EC2/ECS Host headers).
+# (run: node scripts/metrics-proxy.js for EC2/ECS Host headers).
 name: anilove-benchmark
 
 include:

@@ -2,6 +2,11 @@
 # Each suite under benchmarks/suites/<app>/ includes this file, maps host ports,
 # and mounts its own prometheus.yml.
 # Grafana: admin / 123 (suite default only).
+#
+# No host ports here. Compose merges the `ports` list on include rather than
+# replacing it, so a mapping declared here is published in addition to the
+# suite's own and two suites cannot run side by side.
+# Port mapping belongs to the suite. See benchmarks/docs/PORTS.md.
 
 services:
   prometheus:
@@ -10,8 +15,6 @@ services:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
       - --web.enable-lifecycle
-    ports:
-      - "9090:9090"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -23,8 +26,6 @@ services:
 
   grafana:
     image: grafana/grafana:11.3.1
-    ports:
-      - "3002:3000"
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: "123"
@@ -39,22 +40,16 @@ services:
 
   pushgateway-ecs:
     image: prom/pushgateway:v1.10.0
-    ports:
-      - "9092:9091"
     networks:
       - monitoring
 
   pushgateway-ec2:
     image: prom/pushgateway:v1.10.0
-    ports:
-      - "9093:9091"
     networks:
       - monitoring
 
   pushgateway-lambda:
     image: prom/pushgateway:v1.10.0
-    ports:
-      - "9094:9091"
     networks:
       - monitoring
 

@@ -171,7 +171,17 @@ discover_lambda_url() {
   printf '%s' "${url%/}"
 }
 
-# ALB Host header for an app key on a platform (ec2|ecs), per locals.tf.
+# Short DNS label per app, mirroring local.host_label in terraform/locals.tf.
+# Hostnames are <label>-<platform>.<suffix> for all three platforms.
+host_label() {
+  case "$1" in
+    anilove) echo anilove ;;
+    csv) echo csv ;;
+    thumbnail) echo thumb ;;
+  esac
+}
+
+# ALB Host header for an app key on a platform (ec2|ecs|lambda), per locals.tf.
 discover_host() {
   local key="$1" platform="$2" host=""
   if [[ -f "$TARGETS_FILE" ]]; then
@@ -181,14 +191,36 @@ discover_host() {
     local suffix
     suffix="$(tfvar domain_name)"
     [[ -n "$suffix" ]] || suffix="bench.local"
-    # thumbnail's ECS host is deliberately shortened in locals.tf
-    if [[ "$key" == "thumbnail" && "$platform" == "ecs" ]]; then
-      host="thumbnail-ecs.${suffix}"
-    else
-      host="$(app_name "$key")-${platform}.${suffix}"
-    fi
+    host="$(host_label "$key")-${platform}.${suffix}"
   fi
   printf '%s' "$host"
+}
+
+# http or https, depending on whether a domain and zone are configured.
+discover_scheme() {
+  local scheme=""
+  if [[ -f "$TARGETS_FILE" ]]; then
+    scheme="$(json_get scheme || true)"
+  fi
+  if [[ -z "$scheme" ]]; then
+    if [[ -n "$(tfvar domain_name)" && -n "$(tfvar route53_zone_id)" ]]; then
+      scheme="https"
+    else
+      scheme="http"
+    fi
+  fi
+  printf '%s' "$scheme"
+}
+
+# True when the functions are registered as ALB targets, so load tests reach
+# them the same way they reach EC2 and ECS.
+lambda_is_behind_alb() {
+  local v=""
+  if [[ -f "$TARGETS_FILE" ]]; then
+    v="$(json_get lambda_behind_alb || true)"
+  fi
+  [[ -z "$v" ]] && v="$(tfvar lambda_behind_alb)"
+  [[ "$v" == "true" ]]
 }
 
 export MSYS_NO_PATHCONV=1

@@ -33,9 +33,15 @@ if (!albDns) {
   console.error("ERROR: alb_dns missing in", targetsPath);
   process.exit(1);
 }
-const albUrl = `http://${albDns}`;
+const scheme = targets.scheme === "https" ? "https" : "http";
+const albUrl = `${scheme}://${albDns}`;
 const hosts = targets.hostnames || {};
 const lambdas = targets.lambda_urls || {};
+// With the functions registered as ALB targets, the load test reaches all
+// three platforms through the same load balancer and the same request path.
+// The Function URLs stay published either way and remain what Prometheus
+// scrapes for /metrics.
+const lambdaBehindAlb = targets.lambda_behind_alb === true;
 
 function stripSlash(u) {
   return (u || "").replace(/\/$/, "");
@@ -68,23 +74,27 @@ function setComment(text, comment) {
   return lines.join("\n");
 }
 
+// DNS labels mirror local.host_label in terraform/locals.tf.
 const apps = {
   anilove: {
     dir: "benchmarks/suites/anilove/artillery",
     ec2: hosts.anilove_ec2 || "anilove-ec2.bench.local",
     ecs: hosts.anilove_ecs || "anilove-ecs.bench.local",
+    lambdaHost: hosts.anilove_lambda || "anilove-lambda.bench.local",
     lambda: stripSlash(lambdas.anilove),
   },
   "csv-processor": {
     dir: "benchmarks/suites/csv-processor/artillery",
-    ec2: hosts.csv_ec2 || "csv-processor-ec2.bench.local",
-    ecs: hosts.csv_ecs || "csv-processor-ecs.bench.local",
+    ec2: hosts.csv_ec2 || "csv-ec2.bench.local",
+    ecs: hosts.csv_ecs || "csv-ecs.bench.local",
+    lambdaHost: hosts.csv_lambda || "csv-lambda.bench.local",
     lambda: stripSlash(lambdas.csv),
   },
   "thumbnail-generator": {
     dir: "benchmarks/suites/thumbnail-generator/artillery",
-    ec2: hosts.thumbnail_ec2 || "thumbnail-generator-ec2.bench.local",
-    ecs: hosts.thumbnail_ecs || "thumbnail-ecs.bench.local",
+    ec2: hosts.thumbnail_ec2 || "thumb-ec2.bench.local",
+    ecs: hosts.thumbnail_ecs || "thumb-ecs.bench.local",
+    lambdaHost: hosts.thumbnail_lambda || "thumb-lambda.bench.local",
     lambda: stripSlash(lambdas.thumbnail),
   },
 };
@@ -95,7 +105,9 @@ for (const [name, cfg] of Object.entries(apps)) {
   const files = {
     "test-ec2.yml": { kind: "alb", host: cfg.ec2 },
     "test-ecs.yml": { kind: "alb", host: cfg.ecs },
-    "test-lambda.yml": { kind: "lambda", url: cfg.lambda },
+    "test-lambda.yml": lambdaBehindAlb
+      ? { kind: "alb", host: cfg.lambdaHost }
+      : { kind: "lambda", url: cfg.lambda },
   };
   for (const [fname, meta] of Object.entries(files)) {
     const fp = path.join(dir, fname);
@@ -118,20 +130,42 @@ for (const [name, cfg] of Object.entries(apps)) {
   }
 }
 
-// prometheus lambda target host
-const prom = path.join(root, "benchmarks/suites/anilove/prometheus.yml");
-const lamHost = stripSlash(lambdas.anilove || "").replace(/^https?:\/\//, "");
-if (fs.existsSync(prom) && lamHost) {
+// Prometheus lambda scrape target, one per suite. Previously only anilove was
+// patched, leaving the csv and thumbnail suites without a Lambda scrape target.
+// The EC2/ECS jobs need no patching: they point at the metrics proxy on
+// localhost, which is what supplies the Host header the ALB routes on.
+const promSuites = {
+  anilove: "anilove",
+  "csv-processor": "csv",
+  "thumbnail-generator": "thumbnail",
+};
+
+for (const [dir, key] of Object.entries(promSuites)) {
+  const prom = path.join(root, "benchmarks/suites", dir, "prometheus.yml");
+  const lamHost = stripSlash(lambdas[key] || "").replace(/^https?:\/\//, "");
+  if (!fs.existsSync(prom)) continue;
+  if (!lamHost) {
+    console.log("WARN no Lambda URL for", key, "- leaving", dir, "prometheus.yml alone");
+    continue;
+  }
   let p = fs.readFileSync(prom, "utf8");
-  p = p.replace(
-    /(job_name: instrumented-metrics-lambda[\s\S]*?targets:\s*\[\s*")[^"]+(")/,
-    `$1${lamHost}$2`
-  );
+  // Matches an empty list as well as one already filled, so the first sync and
+  // every re-sync both work.
+  const re = /(job_name: instrumented-metrics-lambda[\s\S]*?targets:\s*)\[[^\]]*\]/;
+  if (!re.test(p)) {
+    console.log("WARN could not locate instrumented-metrics-lambda targets in", dir);
+    continue;
+  }
+  p = p.replace(re, `$1["${lamHost}"]`);
   fs.writeFileSync(prom, p);
   console.log("updated", path.relative(root, prom));
 }
 
 console.log("");
 console.log("ALB:", albUrl);
+console.log(
+  "Lambda load path:",
+  lambdaBehindAlb ? "ALB (same as EC2/ECS)" : "Function URL"
+);
 console.log("Done. Restart metrics-proxy if it was running.");
 NODE

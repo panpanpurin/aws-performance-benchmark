@@ -15,7 +15,7 @@ On Windows use **Git Bash** or **WSL**.
 | `sync-artillery-targets.sh` | Fill Artillery YAML from `terraform/generated/benchmark-targets.json` |
 | `health-check.sh` | HTTP health for ALB hosts + Lambda URLs |
 | `ecs-scale.sh` | Scale ECS services and ASG (`up` / `down` / `status`) |
-| `anilove-metrics-proxy.js` | Host proxy for Prometheus scrapes of EC2/ECS via ALB |
+| `metrics-proxy.js` | Host proxy for Prometheus scrapes of EC2/ECS via ALB |
 
 Shared Artillery runner: `benchmarks/scripts/run-parallel.sh`.
 

@@ -1,6 +1,12 @@
 # Thumbnail generator scrape config.
-# App and node-exporter targets are left empty for later fill (manual or automation).
-# Pushgateway targets use Docker Compose service names.
+# App metrics: scrapes host metrics-proxy ports (node scripts/metrics-proxy.js).
+# Artillery: pushgateways inside Docker.
+#
+# The EC2/ECS jobs go through the proxy rather than straight at the ALB because
+# Prometheus cannot set a Host header and the ALB routes by hostname. Without a
+# registered domain the hostnames are *.bench.local and resolve nowhere, so
+# targeting them directly does not work either. The Lambda target is a real DNS
+# name and is scraped directly; make sync-targets fills it.
 
 global:
   scrape_interval: 5s
@@ -9,80 +15,65 @@ scrape_configs:
 
   # ---- EC2 ----
 
-  - job_name: 'instrumented-metrics-ec2'
-    scheme: https
+  - job_name: instrumented-metrics-ec2
     metrics_path: /metrics
     static_configs:
-      - targets: []
-        # e.g. ['thumbnail-generator-ec2.example.com']
+      - targets: ["host.docker.internal:18084"]
         labels:
           service: app-instrumented-ec2
           environment: production
           instance: ec2
 
-  - job_name: 'artillery-metrics-ec2'
+  - job_name: artillery-metrics-ec2
     static_configs:
-      - targets: ['pushgateway-ec2:9091']
+      - targets: ["pushgateway-ec2:9091"]
         labels:
           service: artillery-ec2
           environment: production
           instance: ec2
 
-  - job_name: 'node-exporter-ec2'
-    static_configs:
-      - targets: []
-        # e.g. ['x.x.x.x:9100']
-        labels:
-          service: infra-ec2
-          environment: production
-          instance: ec2
-
   # ---- ECS ----
 
-  - job_name: 'instrumented-metrics-ecs'
-    scheme: https
+  - job_name: instrumented-metrics-ecs
     metrics_path: /metrics
     static_configs:
-      - targets: []
-        # e.g. ['thumbnail-ecs.example.com']
+      - targets: ["host.docker.internal:18085"]
         labels:
           service: app-instrumented-ecs
           environment: production
           instance: ecs
 
-  - job_name: 'artillery-metrics-ecs'
+  - job_name: artillery-metrics-ecs
     static_configs:
-      - targets: ['pushgateway-ecs:9091']
+      - targets: ["pushgateway-ecs:9091"]
         labels:
           service: artillery-ecs
           environment: production
           instance: ecs
 
-  - job_name: 'node-exporter-ecs'
-    static_configs:
-      - targets: []
-        # e.g. ['x.x.x.x:9100']
-        labels:
-          service: infra-ecs
-          environment: production
-          instance: ecs
-
   # ---- Lambda ----
 
-  - job_name: 'instrumented-metrics-lambda'
+  - job_name: instrumented-metrics-lambda
+    # Scraping this endpoint INVOKES the function. On EC2 and ECS the scrape hits
+    # a process that is already running; here each scrape costs one invocation and
+    # occupies the single reserved concurrency slot, so at the global 5s interval
+    # it would add ~384 invocations per 32-min run and could collide with a
+    # benchmark request, returning 429. 30s keeps the series useful without
+    # loading the platform under test.
+    scrape_interval: 30s
     scheme: https
     metrics_path: /metrics
     static_configs:
       - targets: []
-        # e.g. ['xxxx.lambda-url.region.on.aws']
+        # Filled by make sync-targets, e.g. ['xxxx.lambda-url.region.on.aws']
         labels:
           service: app-instrumented-lambda
           environment: production
           instance: lambda
 
-  - job_name: 'artillery-metrics-lambda'
+  - job_name: artillery-metrics-lambda
     static_configs:
-      - targets: ['pushgateway-lambda:9091']
+      - targets: ["pushgateway-lambda:9091"]
         labels:
           service: artillery-lambda
           environment: production

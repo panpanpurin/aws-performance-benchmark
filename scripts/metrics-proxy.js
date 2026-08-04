@@ -1,14 +1,20 @@
-// Reverse proxy so Prometheus can scrape AniLove EC2/ECS /metrics via ALB Host headers.
-// Prometheus cannot set the Host header itself.
+// Reverse proxy so Prometheus can scrape EC2/ECS /metrics through the ALB.
 //
-//   node scripts/anilove-metrics-proxy.js
+// Prometheus cannot set a Host header and the ALB routes by hostname. Without a
+// registered domain the hostnames are *.bench.local and resolve nowhere, so one
+// port per app+platform forwards to the ALB with the right Host.
+//
+//   node scripts/metrics-proxy.js
 //   make metrics-proxy
 //
-//   18080 -> Host: anilove-ec2.bench.local
-//   18081 -> Host: anilove-ecs.bench.local
+//   18080 -> anilove-ec2      18081 -> anilove-ecs
+//   18082 -> csv-ec2          18083 -> csv-ecs
+//   18084 -> thumb-ec2        18085 -> thumb-ecs
 //
-// Optional: ALB_HOST=my-alb.amazonaws.com node scripts/anilove-metrics-proxy.js
-// Also reads terraform/generated/benchmark-targets.json when present.
+// Lambda is not proxied: Function URLs are real DNS names.
+//
+// Optional: ALB_HOST=my-alb.amazonaws.com node scripts/metrics-proxy.js
+// Otherwise reads terraform/generated/benchmark-targets.json.
 
 const http = require("http");
 const fs = require("fs");
@@ -24,10 +30,22 @@ function loadAlbFromTargets() {
   }
 }
 
-const ALB =
-  process.env.ALB_HOST ||
-  loadAlbFromTargets() ||
-  "aws-perf-bench-apps-1451786047.ap-northeast-1.elb.amazonaws.com";
+const ALB = process.env.ALB_HOST || loadAlbFromTargets();
+
+if (!ALB) {
+  console.error("No ALB hostname. Run terraform apply first, or set ALB_HOST.");
+  process.exit(1);
+}
+
+// Hosts match terraform/locals.tf.
+const ROUTES = [
+  [18080, "anilove-ec2.bench.local"],
+  [18081, "anilove-ecs.bench.local"],
+  [18082, "csv-ec2.bench.local"],
+  [18083, "csv-ecs.bench.local"],
+  [18084, "thumb-ec2.bench.local"],
+  [18085, "thumb-ecs.bench.local"],
+];
 
 function startProxy(port, hostHeader) {
   http
@@ -66,7 +84,8 @@ function startProxy(port, hostHeader) {
     });
 }
 
-startProxy(18080, "anilove-ec2.bench.local");
-startProxy(18081, "anilove-ecs.bench.local");
-console.log("Leave this process running while Grafana scrapes app metrics.");
+for (const [port, host] of ROUTES) startProxy(port, host);
+
+console.log("");
+console.log("Leave this process running while any suite scrapes app metrics.");
 console.log("Ctrl+C to stop.");

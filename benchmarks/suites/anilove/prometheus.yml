@@ -1,5 +1,5 @@
 # AniLove scrape config.
-# App metrics: scrapes host metrics-proxy ports (node scripts/anilove-metrics-proxy.js).
+# App metrics: scrapes host metrics-proxy ports (node scripts/metrics-proxy.js).
 # Artillery: pushgateways inside Docker.
 
 global:
@@ -42,10 +42,17 @@ scrape_configs:
           instance: ecs
 
   - job_name: instrumented-metrics-lambda
+    # Scraping this endpoint INVOKES the function. On EC2 and ECS the scrape hits
+    # a process that is already running; here each scrape costs one invocation and
+    # occupies the single reserved concurrency slot, so at the global 5s interval
+    # it would add ~384 invocations per 32-min run and could collide with a
+    # benchmark request, returning 429. 30s keeps the series useful without
+    # loading the platform under test.
+    scrape_interval: 30s
     scheme: https
     metrics_path: /metrics
     static_configs:
-      - targets: ["REPLACE_ME"]
+      - targets: []
         labels:
           service: app-instrumented-lambda
           environment: production
