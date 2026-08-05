@@ -17,18 +17,23 @@ register.setDefaultLabels({
   environment: process.env.NODE_ENV || 'production',
 });
 
+const LATENCY_BUCKETS = [
+  0.005, 0.0075, 0.01, 0.0125, 0.015, 0.02, 0.025, 0.03, 0.04, 0.05,
+  0.07, 0.1, 0.15, 0.2, 0.3, 0.5, 0.75, 1, 2, 5,
+];
+
 const totalExecutionTime = new client.Histogram({
   name: 'app_total_execution_time_seconds',
   help: 'Total application execution time per request (post-body parsing to res.finish)',
   labelNames: ['status', 'method', 'operation', 'route'],
-  buckets: [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
+  buckets: LATENCY_BUCKETS,
 });
 
 const thumbnailProcessingDurationSeconds = new client.Histogram({
   name: 'app_internal_processing_time_seconds',
-  help: 'Time to generate a thumbnail in seconds (internal only)',
+  help: 'Sharp decode + resize + encode only, excluding framework and response write',
   labelNames: ['status', 'method', 'operation', 'format'],
-  buckets: [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
+  buckets: LATENCY_BUCKETS,
 });
 
 // CPU is reported from this counter, not from app_cpu_usage_percent.
@@ -100,6 +105,23 @@ register.registerMetric(coldStartHistogram);
 
 if (!isLambda) {
   client.collectDefaultMetrics({ register });
+}
+
+// Peaks ratchet over the process lifetime, as in anilove and csv-processor.
+// Setting them per request, as this app did before, reports whichever request
+// finished last instead of the peak.
+let peakCpuSeen = null;
+let peakRamSeen = null;
+
+function recordResourceSample({ operation, avgCpu, peakCpu, avgRam, peakRam }) {
+  cpuUsagePercent.labels(operation).set(avgCpu);
+  ramUsageMb.labels(operation).set(avgRam);
+
+  if (peakCpuSeen === null || peakCpu > peakCpuSeen) peakCpuSeen = peakCpu;
+  if (peakRamSeen === null || peakRam > peakRamSeen) peakRamSeen = peakRam;
+
+  peakCpuUsagePercent.labels(operation).set(peakCpuSeen);
+  peakRamUsageMb.labels(operation).set(peakRamSeen);
 }
 
 // Cold start (Lambda)
@@ -203,6 +225,7 @@ module.exports = {
   ramPeakMb: peakRamUsageMb,
   coldStartHistogram,
   cpuSecondsTotal,
+  recordResourceSample,
   syncCpuSecondsCounter,
   recordColdStartIfNeeded,
   startRequestMetricsSampling,

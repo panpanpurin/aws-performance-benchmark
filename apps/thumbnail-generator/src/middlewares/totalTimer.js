@@ -4,10 +4,7 @@ const onFinished = require('on-finished');
 const {
   totalExecutionTime,
   startRequestMetricsSampling,
-  cpuUsagePercent,
-  peakCpuUsagePercent,
-  ramUsageMb,
-  peakRamUsageMb,
+  recordResourceSample,
 } = require('../metrics');
 
 function totalTimer({ operation, route }) {
@@ -31,10 +28,7 @@ function totalTimer({ operation, route }) {
 
       try {
         const { avgCpu, peakCpu, avgRam, peakRam } = stopSampler();
-        cpuUsagePercent.labels(operation).set(avgCpu);
-        peakCpuUsagePercent.labels(operation).set(peakCpu);
-        ramUsageMb.labels(operation).set(avgRam);
-        peakRamUsageMb.labels(operation).set(peakRam);
+        recordResourceSample({ operation, avgCpu, peakCpu, avgRam, peakRam });
       } catch (_) {}
     };
 

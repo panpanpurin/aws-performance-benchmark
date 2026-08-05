@@ -23,9 +23,9 @@ compute model is the only intended difference.
 | ECS on EC2 | `c6i.large` hosts; task 1024 CPU units (1 vCPU) / 1024 MB |
 | Lambda | 1769 MB (one full vCPU), 1024 MB ephemeral, 30 s timeout, container image, **reserved concurrency 1** |
 | Database | one `db.m6g.large` PostgreSQL 17.6, Single-AZ, shared by all platforms |
-| Load generator | Artillery 2.0.23, in-region; five phases, ~27 min per csv run |
-| Arrivals per run | 43,800 (anilove, estimated), **20,280 (csv, measured phases)**, 13,740 (thumbnail, estimated) |
-| HTTP requests per run | **219,000** (anilove — 5 per arrival), 20,280 (csv), 13,740 (thumbnail) |
+| Load generator | Artillery 2.0.23, in-region; five phases, ~27 min per csv run, ~33 min per thumbnail run |
+| Arrivals per run | 43,800 (anilove, estimated), **20,280 (csv, measured phases)**, **24,120 (thumbnail, derived phases)** |
+| HTTP requests per run | **219,000** (anilove — 5 per arrival), 20,280 (csv), 24,120 (thumbnail) |
 
 **Every platform gets one vCPU and 1 GB**, enforced three different ways: the
 ECS task definition caps CPU units and memory, the EC2 `docker run` is given
@@ -183,7 +183,7 @@ those the two coincide. Getting this wrong understates AniLove's real load by
 |-------|------------------|---------------------|------------------------------|--------------|-------------|--------------|
 | anilove | ~45 ms (estimate) | ~22 req/s | 50 | **5** | **250 req/s** | **11x** |
 | csv-processor | ~175 ms (estimate) | ~5.7 req/s | 28 | 1 | 28 req/s | 4.9x |
-| thumbnail-generator | ~290 ms (estimate) | ~3.4 req/s | 12 | 1 | 12 req/s | 3.5x |
+| thumbnail-generator | ~290 ms (estimate, later shown ~20x too high, see below) | ~3.4 req/s | 12 | 1 | 12 req/s | 3.5x |
 
 **Those service times were estimates and at least one was badly wrong.** The
 csv-processor pilot (2026-08-03) measured mean server-side service time of
@@ -234,8 +234,25 @@ their own ceiling, where they built 60-second queues and logged ~5000
 `ETIMEDOUT` each, while Lambda shed 69%. See "One rate cannot saturate three
 platforms" below.
 
-anilove and thumbnail-generator still carry estimated rates and a warning banner
-in their `test-*.yml`. Pilot them before their numbers are used.
+anilove still carries estimated rates and a warning banner in its `test-*.yml`.
+Pilot it before its numbers are used.
+
+**thumbnail-generator was rescheduled on 2026-08-05.** Its service time had never
+been measured and the ~290 ms estimate above was wrong by roughly 20x, the same
+inversion csv-processor hit. Both apps were measured on one workstation under
+Docker, uncontended at 1 req/s, n=180, using the AWS fixtures and query params:
+csv-processor 19.48 ms, thumbnail 17.97 ms. csv-processor's c6i.large figures are
+known from its pilot, which gives a workstation factor of 1.354x and puts
+thumbnail's binding Lambda ceiling near 30 req/s rather than 3.4. Its old 12 req/s
+peak was at ~40% of the real ceiling, under-saturated rather than 3.5x over it.
+The schedule now mirrors csv-processor's: warm-up and primary at 14 req/s, probes
+at 4, 8 and 20. That is a derivation, not a pilot, and it only has to be roughly
+right - anywhere from 1.0x to 2.0x the primary stays at 33-66% of the ceiling.
+Run `make pilot-thumbnail` before quoting a number.
+
+Its probes run 360 s rather than csv-processor's 240 s. Dashboard panels read
+`rate(...[5m])`, so nothing inside a 240 s phase can be read without pulling in
+the neighbouring one. csv-processor's probes still have this; its primary does not.
 
 **Validation of the schedule (csv-processor, 2026-08-04, Experiment A).** The
 schedule above was run end to end at `reserved_concurrency = 1` to check that
@@ -279,10 +296,11 @@ Client-side latency barely moves between the two: mean 59.1 ms capped against
 speed, because no phase approached the per-sandbox service rate.
 
 Run entirely above the ceiling and the result is queueing on EC2/ECS versus
-rejection on Lambda, not per-request cost. The committed schedules still carry
-the rates written for the retired `t2.micro` / `t3.small` pair and **must be
-re-derived before any run whose numbers reach the paper**; each `test-*.yml`
-carries a warning banner to that effect until it is.
+rejection on Lambda, not per-request cost. csv-processor's schedule is measured
+and thumbnail-generator's is derived; **anilove still carries the rates written
+for the retired `t2.micro` / `t3.small` pair and must be re-derived before any
+run whose numbers reach the paper**, and its `test-*.yml` carry a warning banner
+until it is.
 
 The pilot is tooled:
 
@@ -441,21 +459,28 @@ Reference implementation: `apps/anilove/src/metrics.js`.
 | Metric | Meaning |
 |--------|---------|
 | `app_total_execution_time_seconds` | Full request time measured inside the application |
-| `app_internal_processing_time_seconds` | Same, minus time spent waiting on PostgreSQL |
+| `app_internal_processing_time_seconds` | The workload alone: anilove minus PostgreSQL wait, csv-processor's `process_csv`, thumbnail's sharp pipeline |
 | `app_cold_start_duration_seconds` | Runtime init to first invocation; Lambda only, once per container |
 | `app_cpu_seconds_total` | Cumulative process CPU time; **the metric CPU is reported from** |
 | `app_cpu_usage_percent` | Process CPU utilisation — diagnostic only, not comparable across platforms (see below) |
-| `app_ram_peak_mb` | Peak resident memory since process start |
+| `app_ram_peak_mb` | Peak resident memory since process start (see note on thumbnail-generator below) |
 | `artillery_rates{metric="http_request_rate"}` | Throughput, client-side |
 | `artillery_summaries` 2xx ratio | Error rate, client-side |
 
 **What the timer covers.** app_total_execution_time_seconds starts inside the
-handler, after the framework has buffered the request body, and stops when the
-handler returns. Upload and download time are therefore excluded, which keeps
-the client network path out of the platform comparison - the 533 KB csv upload
-contributes generator bandwidth but not measured time. Client-side latency from
-the Artillery report includes it, which is why the two differ by roughly the
-round trip.
+handler, after the framework has buffered the request body. Upload time is
+therefore excluded on every app, which keeps the client network path out of the
+platform comparison - the 533 KB csv upload contributes generator bandwidth but
+not measured time. Client-side latency from the Artillery report includes it,
+which is why the two differ by roughly the round trip.
+
+Where it *stops* differs. csv-processor stops when the route handler returns, so
+download time is excluded. thumbnail-generator stops on response finish, putting
+the socket write inside the measurement: sub-millisecond against ~14 ms, but not
+zero, and serverless-express buffers on Lambda where EC2 and ECS write to a
+socket. Buffering the output to make the boundary uniform would change the memory
+profile, which is also reported, so the asymmetry is the smaller distortion.
+
 
 The difference between the first two is time waiting on the database. AniLove
 tracks it with `AsyncLocalStorage` fed by Sequelize's `benchmark` logger, which
@@ -463,13 +488,12 @@ is what separates platform overhead from application work.
 
 More metrics are instrumented than the paper reports
 (`app_cpu_peak_percent`, `app_ram_usage_mb`, client-side latency, host-level
-CPU and memory). They remain available in the dashboards under
-`benchmarks/suites/*/grafana/`.
 
 ## Queries behind each number
 
 Set the query range to a **single load phase**. Averaging across phases mixes
 warm-up into the stress peak.
+
 
 ```promql
 # Latency P95, milliseconds (P99: replace 0.95)
@@ -555,8 +579,8 @@ inflate it.
 request count over the same window it gives CPU seconds per request, which is
 freeze-immune (a frozen sandbox accrues no CPU and serves no requests) and
 concurrency-safe (numerator and denominator cover the same window). The three
-percentage gauges are retained for the dashboards and live diagnosis, and
-should not be published.
+percentage gauges are still exported for live diagnosis and should not be
+published; the csv and thumbnail dashboards no longer plot them.
 
 **Cold start buckets are shared across the three applications.** All three use
 the same edges (`0.1 … 12 s`, dense over 0.25-3 s), so cold start is comparable
@@ -684,13 +708,12 @@ with empty Prometheus scrape targets for the csv and thumbnail suites.
   platforms; `DB_SCHEMA` isolates data, not load. Concurrent runs contend for
   the same CPU and IOPS, and that contention is part of the measured database
   wait.
-- **Transitive Python dependencies are not locked yet.** The Node applications
-  are fully pinned (see [Build reproducibility](#build-reproducibility)), and
-  csv-processor's direct dependencies are pinned exactly, but its transitive
-  set — above all `numpy`, which is what pandas computes with — still resolves
-  at build time. `pandas==2.3.1` declares only `numpy>=1.26.0` on Python 3.12.
-  Run `bash scripts/lock-python-deps.sh` and commit the result before
-  collecting data, which closes this gap.
+- ~~**Transitive Python dependencies are not locked yet.**~~ Closed.
+  `apps/csv-processor/requirements.txt` is now a full transitive closure pinned
+  exactly (`numpy==2.5.1`), generated by `scripts/lock-python-deps.sh` and
+  resolved inside the same digest-pinned base image the Dockerfile builds from.
+  `make validate-fairness` asserts it. All three applications are now fully
+  pinned, so dependency drift is no longer a threat to validity.
 - **Half of each host is idle.** `c6i.large` has 2 vCPUs and the container is
   capped at 1, because no 1-vCPU non-burstable type exists. Results therefore
   describe an application confined to one vCPU on an otherwise unloaded host,

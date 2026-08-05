@@ -134,14 +134,20 @@ else
 fi
 echo
 
+# --output writes the JSON report push-artillery-report.js reads. The
+# publish-metrics plugin only pushes its last reporting interval and never emits
+# the 4xx/5xx counts, so without this the error panels stay empty and throughput
+# and availability show a 10-second sample instead of the run.
+run_start=$(date +%s)
+
 # shellcheck disable=SC2086
-eval "$ART_RUN $PREFIX-ec2.yml"    > "logs/$PREFIX-ec2-$stamp.log"    2>&1 & pid_ec2=$!
+eval "$ART_RUN $PREFIX-ec2.yml    --output logs/$PREFIX-ec2-$stamp.json"    > "logs/$PREFIX-ec2-$stamp.log"    2>&1 & pid_ec2=$!
 echo "[EC2]    pid=$pid_ec2    -> logs/$PREFIX-ec2-$stamp.log"
 # shellcheck disable=SC2086
-eval "$ART_RUN $PREFIX-ecs.yml"    > "logs/$PREFIX-ecs-$stamp.log"    2>&1 & pid_ecs=$!
+eval "$ART_RUN $PREFIX-ecs.yml    --output logs/$PREFIX-ecs-$stamp.json"    > "logs/$PREFIX-ecs-$stamp.log"    2>&1 & pid_ecs=$!
 echo "[ECS]    pid=$pid_ecs    -> logs/$PREFIX-ecs-$stamp.log"
 # shellcheck disable=SC2086
-eval "$ART_RUN $PREFIX-lambda.yml" > "logs/$PREFIX-lambda-$stamp.log" 2>&1 & pid_lambda=$!
+eval "$ART_RUN $PREFIX-lambda.yml --output logs/$PREFIX-lambda-$stamp.json" > "logs/$PREFIX-lambda-$stamp.log" 2>&1 & pid_lambda=$!
 echo "[LAMBDA] pid=$pid_lambda -> logs/$PREFIX-lambda-$stamp.log"
 
 status=0
@@ -160,6 +166,19 @@ if [[ "$status" -ne 0 ]]; then
   done
   exit 1
 fi
+
+run_elapsed=$(( $(date +%s) - run_start ))
+
+# Feeds the dashboard's lower two rows. loadgen-run.sh does the same after a
+# remote run; repeating is safe, the pushgateway keeps only the latest value.
+echo
+echo "Publishing client-side metrics ..."
+( cd "$ROOT" && node scripts/push-artillery-report.js "$SUITE" "$stamp" ) ||
+  echo "WARN could not publish client-side metrics - is 'make $MAKE_HINT' up?" >&2
+
+echo "Publishing Lambda CloudWatch metrics ..."
+( cd "$ROOT" && node scripts/push-lambda-cloudwatch.js "$SUITE" "$run_elapsed" ) ||
+  echo "WARN could not publish Lambda CloudWatch metrics - check AWS credentials" >&2
 
 echo
 if [[ "$PREFIX" == "pilot" ]]; then

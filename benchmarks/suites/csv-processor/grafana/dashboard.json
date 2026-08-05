@@ -207,7 +207,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "1000 *\r\n(\r\n  sum by (service) (\r\n    rate(app_total_execution_time_seconds_sum[5m])\r\n  )\r\n/\r\n  clamp_min(\r\n    sum by (service) (\r\n      rate(app_total_execution_time_seconds_count[5m])\r\n    ),\r\n    1\r\n  )\r\n)",
+          "expr": "1000 *\r\n(\r\n  sum by (service) (\r\n    rate(app_total_execution_time_seconds_sum[5m])\r\n  )\r\n/\r\n  clamp_min(\r\n    sum by (service) (\r\n      rate(app_total_execution_time_seconds_count[5m])\r\n    ),\r\n    1e-9\r\n  )\r\n)",
           "hide": false,
           "instant": false,
           "legendFormat": "__auto",
@@ -308,7 +308,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "1000 *\r\n(\r\n  sum by (service) (\r\n    rate(app_internal_processing_time_seconds_sum[5m])\r\n  )\r\n/\r\n  clamp_min(\r\n    sum by (service) (\r\n      rate(app_internal_processing_time_seconds_count[5m])\r\n    ),\r\n    1\r\n  )\r\n)",
+          "expr": "1000 *\r\n(\r\n  sum by (service) (\r\n    rate(app_internal_processing_time_seconds_sum[5m])\r\n  )\r\n/\r\n  clamp_min(\r\n    sum by (service) (\r\n      rate(app_internal_processing_time_seconds_count[5m])\r\n    ),\r\n    1e-9\r\n  )\r\n)",
           "hide": false,
           "instant": false,
           "legendFormat": "__auto",
@@ -791,107 +791,6 @@
         "x": 0,
         "y": 29
       },
-      "id": 27,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.2.1",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "avg by (service) (\r\n  avg_over_time(app_ram_usage_mb[5m])\r\n)",
-          "hide": false,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "B"
-        }
-      ],
-      "title": "RAM usage APP (mb) - AVG",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "decmbytes"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 29
-      },
       "id": 28,
       "options": {
         "legend": {
@@ -990,8 +889,8 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 0,
-        "y": 37
+        "x": 12,
+        "y": 29
       },
       "id": 29,
       "options": {
@@ -1033,106 +932,10 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 45
+        "y": 37
       },
       "collapsed": false,
       "panels": []
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "ms"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 46
-      },
-      "id": 14,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.2.1",
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "avg(artillery_summaries{metric=\"http_response_time_mean\"}) by (service)",
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Communication Latency (ms) - AVG (http.response_time)",
-      "type": "timeseries",
-      "description": "Client-side, from the Artillery JSON report published at the end of the run. A pushgateway holds only the last pushed value, so this is a run-level aggregate, not a time series."
     },
     {
       "datasource": {
@@ -1199,8 +1002,8 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
-        "y": 46
+        "x": 0,
+        "y": 38
       },
       "id": 6,
       "options": {
@@ -1232,7 +1035,6 @@
     },
     {
       "datasource": {
-        "type": "prometheus",
         "uid": "prometheus"
       },
       "fieldConfig": {
@@ -1288,103 +1090,7 @@
               }
             ]
           },
-          "unit": "ms"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 54
-      },
-      "id": 15,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.2.1",
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "avg(artillery_summaries{metric=\"http_response_time_p95\"}) by (service)",
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Communication Latency (ms) - P95 (http.response_time)",
-      "type": "timeseries",
-      "description": "Client-side, from the Artillery JSON report published at the end of the run. A pushgateway holds only the last pushed value, so this is a run-level aggregate, not a time series."
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "ms"
+          "unit": "percent"
         },
         "overrides": []
       },
@@ -1392,9 +1098,9 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 54
+        "y": 38
       },
-      "id": 16,
+      "id": 10,
       "options": {
         "legend": {
           "calcs": [],
@@ -1412,13 +1118,13 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "avg(artillery_summaries{metric=\"http_response_time_p99\"}) by (service)",
+          "expr": "100 * (\r\n  sum(artillery_summaries{metric=\"http_response_time_2xx_count\"}) by (service)\r\n  /\r\n  sum(artillery_summaries{metric=\"http_response_time_count\"}) by (service)\r\n)",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Communication Latency (ms) - P99 (http.response_time)",
+      "title": "Availability (%)",
       "type": "timeseries",
       "description": "Client-side, from the Artillery JSON report published at the end of the run. A pushgateway holds only the last pushed value, so this is a run-level aggregate, not a time series."
     },
@@ -1488,7 +1194,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 62
+        "y": 46
       },
       "id": 7,
       "options": {
@@ -1584,7 +1290,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 62
+        "y": 46
       },
       "id": 8,
       "options": {
@@ -1615,101 +1321,6 @@
       "description": "Genuine 5xx responses only. A throttled Lambda behind an ALB returns 502, so Experiment A throttling appears here rather than in the 4xx panel. Client-side, from the Artillery JSON report published at the end of the run. A pushgateway holds only the last pushed value, so this is a run-level aggregate, not a time series."
     },
     {
-      "datasource": {
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "percent"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 70
-      },
-      "id": 10,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.2.1",
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "100 * (\r\n  sum(artillery_summaries{metric=\"http_response_time_2xx_count\"}) by (service)\r\n  /\r\n  sum(artillery_summaries{metric=\"http_response_time_count\"}) by (service)\r\n)",
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Availability (%)",
-      "type": "timeseries",
-      "description": "Client-side, from the Artillery JSON report published at the end of the run. A pushgateway holds only the last pushed value, so this is a run-level aggregate, not a time series."
-    },
-    {
       "type": "row",
       "title": "Experiment B - Lambda from CloudWatch (authoritative in BOTH modes)",
       "id": 38,
@@ -1717,7 +1328,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 78
+        "y": 54
       },
       "collapsed": false,
       "panels": []
@@ -1790,7 +1401,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 79
+        "y": 55
       },
       "id": 22,
       "options": {
@@ -1836,7 +1447,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 79
+        "y": 55
       },
       "fieldConfig": {
         "defaults": {
@@ -1960,7 +1571,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 87
+        "y": 63
       },
       "id": 31,
       "options": {
@@ -2060,7 +1671,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 87
+        "y": 63
       },
       "id": 32,
       "options": {
@@ -2107,7 +1718,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 95
+        "y": 71
       },
       "fieldConfig": {
         "defaults": {
@@ -2170,7 +1781,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 95
+        "y": 71
       },
       "fieldConfig": {
         "defaults": {

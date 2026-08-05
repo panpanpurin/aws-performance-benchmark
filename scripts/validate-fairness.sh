@@ -344,6 +344,64 @@ else
     warn "no running EC2 app instances tagged Platform=ec2"
   fi
 
+  # Read the limits off the
+  # running container over SSM and compare them with terraform.tfvars.
+  want_cpus="$(tfvar container_cpus)"
+  : "${want_cpus:=1}"
+  want_mem_mb="$(tfvar container_memory_mb)"
+  : "${want_mem_mb:=1024}"
+  want_nano=$(awk -v c="$want_cpus" 'BEGIN{printf "%d", c * 1000000000}')
+  want_bytes=$(( want_mem_mb * 1024 * 1024 ))
+
+  for key in "${APP_KEYS[@]}"; do
+    iid="$(aws ec2 describe-instances --region "$REGION" \
+      --filters "Name=tag:Project,Values=$PROJECT" "Name=tag:Platform,Values=ec2" \
+      "Name=tag:App,Values=$key" "Name=instance-state-name,Values=running" \
+      --query 'Reservations[0].Instances[0].InstanceId' --output text 2>/dev/null || true)"
+    [[ -n "$iid" && "$iid" != "None" ]] || continue
+
+    cid="$(aws ssm send-command --region "$REGION" --instance-ids "$iid" \
+      --document-name "AWS-RunShellScript" \
+      --comment "validate-fairness cpu limit" \
+      --parameters "commands=[\"docker inspect $(app_name "$key") --format '{{.HostConfig.NanoCpus}} {{.HostConfig.Memory}}'\"]" \
+      --query 'Command.CommandId' --output text 2>/dev/null || true)"
+    if [[ -z "$cid" || "$cid" == "None" ]]; then
+      warn "$key: could not run docker inspect over SSM - container CPU limit unverified"
+      continue
+    fi
+
+    out=""
+    for _ in $(seq 1 15); do
+      st="$(aws ssm get-command-invocation --region "$REGION" \
+        --command-id "$cid" --instance-id "$iid" \
+        --query 'Status' --output text 2>/dev/null || echo Pending)"
+      case "$st" in
+        Success)
+          out="$(aws ssm get-command-invocation --region "$REGION" \
+            --command-id "$cid" --instance-id "$iid" \
+            --query 'StandardOutputContent' --output text 2>/dev/null || true)"
+          break
+          ;;
+        Failed | Cancelled | TimedOut) break ;;
+      esac
+      sleep 2
+    done
+
+    got_nano="$(echo "$out" | tr -d '\r' | awk 'NF{print $1; exit}')"
+    got_bytes="$(echo "$out" | tr -d '\r' | awk 'NF{print $2; exit}')"
+    if [[ -z "$got_nano" ]]; then
+      warn "$key: no docker inspect output - container CPU limit unverified"
+    elif [[ "$got_nano" == "0" ]]; then
+      fail "$key: EC2 container runs with NO CPU limit - it gets the whole host, ECS/Lambda get 1 vCPU"
+    elif [[ "$got_nano" != "$want_nano" ]]; then
+      fail "$key: EC2 container capped at $((got_nano / 1000000)) mCPU, terraform.tfvars declares $want_cpus vCPU"
+    elif [[ -n "$got_bytes" && "$got_bytes" != "$want_bytes" ]]; then
+      fail "$key: EC2 container memory $((got_bytes / 1024 / 1024)) MB, terraform.tfvars declares $want_mem_mb MB"
+    else
+      ok "$key: EC2 container capped at $want_cpus vCPU / $want_mem_mb MB"
+    fi
+  done
+
   # EC2 pulls the :latest tag at boot. An instance launched before the current
   # image was pushed is running a different image than ECS and Lambda.
   for key in "${APP_KEYS[@]}"; do
