@@ -17,7 +17,7 @@ BASH := $(if $(GIT_BASH),$(GIT_BASH),bash)
 
 .PHONY: help check \
 	validate validate-tf validate-bench validate-fairness validate-aws \
-	validate-teardown \
+	validate-teardown db-reset db-count \
 	local-up local-down local-ps local-logs local-rebuild \
 	local-test local-test-anilove local-test-csv local-test-thumbnail \
 	bench-anilove bench-csv bench-thumbnail \
@@ -42,6 +42,8 @@ help:
 	@echo "  make validate-bench    artillery + prometheus + compose config"
 	@echo "  make validate-aws      post-apply: targets healthy, services, RDS, Lambda"
 	@echo "  make validate-fairness only-compute-varies: metrics, pins, deployed specs"
+	@echo "  make db-reset          truncate + reseed the anilove schemas (before each repetition)"
+	@echo "  make db-count          rows left per schema, changes nothing"
 	@echo "  make health            ALB + Lambda /health"
 	@echo "  make sync-targets      Artillery YAML from terraform outputs"
 	@echo ""
@@ -87,6 +89,12 @@ validate-aws:
 
 validate-fairness:
 	$(BASH) scripts/validate-fairness.sh
+
+db-reset:
+	$(BASH) scripts/db-reset.sh
+
+db-count:
+	$(BASH) scripts/db-reset.sh --count
 
 validate-teardown:
 	$(BASH) scripts/validate-teardown.sh

@@ -76,6 +76,10 @@ resource "aws_db_instance" "this" {
 
   parameter_group_name = aws_db_parameter_group.this.name
 
+  # Pinned so the database shares a zone with all three compute models.
+  # Valid only because multi_az is false. See pin_compute_az in the root stack.
+  availability_zone = var.availability_zone
+
   multi_az            = false
   publicly_accessible = false
   storage_encrypted   = true

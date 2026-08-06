@@ -54,18 +54,27 @@ function recordColdStartOnce() {
 }
 
 // ---- Request histograms ----
+// Same edges as the other two apps, so latency is comparable between workloads.
+// The previous set jumped 0.1 -> 0.25, a 150 ms bucket around the expected P95;
+// a quantile is interpolated inside its bucket and the resolution is lost at
+// observation time. Provisional until make pilot-anilove runs.
+const LATENCY_BUCKETS = [
+  0.005, 0.0075, 0.01, 0.0125, 0.015, 0.02, 0.025, 0.03, 0.04, 0.05,
+  0.07, 0.1, 0.15, 0.2, 0.3, 0.5, 0.75, 1, 2, 5,
+];
+
 const httpRequestDuration = new client.Histogram({
   name: 'app_total_execution_time_seconds',
   help: 'Total request time (Express: start to finish)',
   labelNames: ['route', 'method', 'status_code'],
-  buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
+  buckets: LATENCY_BUCKETS,
 });
 
 const internalProcessingDuration = new client.Histogram({
   name: 'app_internal_processing_time_seconds',
   help: 'Request time minus DB time (app-only)',
   labelNames: ['route', 'method', 'status_code'],
-  buckets: [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5],
+  buckets: LATENCY_BUCKETS,
 });
 
 register.registerMetric(httpRequestDuration);

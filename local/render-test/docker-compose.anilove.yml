@@ -1,0 +1,61 @@
+# Dashboard rendering check, NOT a measurement: identical containers on one host
+# and one Postgres, isolated by DB_SCHEMA as on AWS.
+#
+# One app at a time. The local Prometheus is shared and the dashboards group by
+# service without filtering by app, so anilove and thumbnail cannot both hold the
+# app-instrumented-* labels. Bring the other down first.
+#
+#   docker compose -f local/render-test/docker-compose.anilove.yml up -d
+#
+# Seed each schema first, or the paged list returns nothing:
+#   DB_SCHEMA=ecs node seedDB.js && DB_SCHEMA=lambda node seedDB.js
+
+services:
+  anilove-ecs:
+    image: aws-performance-benchmark-anilove:latest
+    container_name: render-test-anilove-ecs
+    environment:
+      PORT: "3000"
+      NODE_ENV: production
+      SERVICE_NAME: anilove
+      DB_NAME: anilove
+      DB_USER: anilove
+      DB_PASSWORD: anilove
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_SSL: "false"
+      DB_SCHEMA: ecs
+      DB_POOL_MIN: "1"
+      DB_POOL_MAX: "10"
+      JWT_SECRET: local-dev-secret
+    ports:
+      - "3010:3000"
+    networks:
+      - benchmark
+
+  anilove-lambda:
+    image: aws-performance-benchmark-anilove:latest
+    container_name: render-test-anilove-lambda
+    environment:
+      PORT: "3000"
+      NODE_ENV: production
+      SERVICE_NAME: anilove
+      DB_NAME: anilove
+      DB_USER: anilove
+      DB_PASSWORD: anilove
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_SSL: "false"
+      DB_SCHEMA: lambda
+      DB_POOL_MIN: "1"
+      DB_POOL_MAX: "10"
+      JWT_SECRET: local-dev-secret
+    ports:
+      - "3020:3000"
+    networks:
+      - benchmark
+
+networks:
+  benchmark:
+    external: true
+    name: aws-performance-benchmark_benchmark

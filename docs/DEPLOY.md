@@ -64,7 +64,10 @@ Caveats:
 
 1. Parallel platform load shares RDS CPU and IOPS.
 2. Keep pools reasonable (`DB_POOL_MAX`).
-3. Clear only the active schema: `DB_SCHEMA=ec2 node cleanDB.js`.
+3. Truncate and reseed all three schemas before each repetition: `make db-reset`.
+   On AWS this must go through SSM to the anilove EC2 instance, since RDS is not
+   publicly accessible; locally, run `cleanDB.js` then `seedDB.js` from
+   `apps/anilove/` with `DB_SCHEMA` set.
 4. For platform charts, run EC2 + ECS + Lambda Artillery together ([PARALLEL-BENCHMARK.md](./PARALLEL-BENCHMARK.md)).
 
 Example (after Terraform apply; prefer secrets injection over plain `.env` on AWS):

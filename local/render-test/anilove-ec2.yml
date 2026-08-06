@@ -1,18 +1,13 @@
-# Local AniLove, shaped as a service-time probe.
-#
-# Each arrival issues five requests, so arrivalCount is one fifth of the request
-# rate. Seed the schema first (node seedDB.js) or the paged list returns fewer
-# rows than a real run and understates its cost.
+# GENERATED for the dashboard rendering check, not a measurement: the three
+# targets are identical containers sharing one host's CPU and one Postgres.
+# The scenario is copied from local/artillery/test-anilove-local.yml.
 config:
   target: "http://localhost:3000"
   phases:
-    # Discard. Absorbs container start, JIT and pool warm-up.
-    - duration: 60
-      arrivalCount: 60
-
-    # Measure. 2 arrivals/s = 10 req/s. ~1800 timed requests.
-    - duration: 180
-      arrivalCount: 360
+    - duration: 30
+      arrivalCount: 30
+    - duration: 240
+      arrivalCount: 480
 
   defaults:
     headers:
@@ -24,12 +19,12 @@ config:
     publish-metrics:
       - type: prometheus
         pushgateway: "http://localhost:9093"
-        testName: "anilove-local-load-test"
+        testName: "anilove-render-test"
         environment: "local"
         labels:
           service: "anilove-service"
           scenario: "animes-crud"
-          instance: local
+          instance: ec2
 
 scenarios:
   - name: Animes CRUD (local)

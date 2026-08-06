@@ -114,3 +114,14 @@ locals {
     } : {}
   )
 }
+
+locals {
+  # One zone for every compute model and the database. See pin_compute_az.
+  benchmark_subnet_index = var.benchmark_az_index % length(module.network.private_subnet_ids)
+
+  compute_subnet_ids = var.pin_compute_az ? [
+    module.network.private_subnet_ids[local.benchmark_subnet_index]
+  ] : module.network.private_subnet_ids
+
+  benchmark_az = var.pin_compute_az ? module.network.availability_zones[local.benchmark_subnet_index] : null
+}

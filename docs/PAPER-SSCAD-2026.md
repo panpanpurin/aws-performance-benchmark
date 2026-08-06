@@ -24,8 +24,8 @@ compute model is the only intended difference.
 | Lambda | 1769 MB (one full vCPU), 1024 MB ephemeral, 30 s timeout, container image, **reserved concurrency 1** |
 | Database | one `db.m6g.large` PostgreSQL 17.6, Single-AZ, shared by all platforms |
 | Load generator | Artillery 2.0.23, in-region; five phases, ~27 min per csv run, ~33 min per thumbnail run |
-| Arrivals per run | 43,800 (anilove, estimated), **20,280 (csv, measured phases)**, **5,580 (thumbnail, derived phases)** |
-| HTTP requests per run | **219,000** (anilove — 5 per arrival), 20,280 (csv), 5,580 (thumbnail) |
+| Arrivals per run | 8,640 (anilove, provisional), **20,280 (csv, measured phases)**, **5,580 (thumbnail, derived phases)** |
+| HTTP requests per run | **43,200** (anilove, 5 per arrival), 20,280 (csv), 5,580 (thumbnail) |
 
 **Every platform gets one vCPU and 1 GB**, enforced three different ways: the
 ECS task definition caps CPU units and memory, the EC2 `docker run` is given

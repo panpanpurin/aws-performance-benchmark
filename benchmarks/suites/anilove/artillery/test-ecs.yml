@@ -1,42 +1,35 @@
 config:
   target: "https://REPLACE_ME"
-  # ------------------------------------------------------------
-  # WARNING: rates below are unverified. They date from the retired
-  # t2.micro / t3.small hardware and have not been re-derived for the
-  # current one-worker-per-platform setup, so they run above the
-  # saturation ceiling. Run the pilot (make pilot-configs, then
-  # make pilot-<suite>) and set the phases from the measured ceiling.
-  # See docs/PAPER-SSCAD-2026.md.
-  # ------------------------------------------------------------
+  # WARNING: rates unverified, never piloted. Unlike the other two suites the
+  # ceiling cannot be derived from them: about half of each request is database
+  # wait. Run make pilot-anilove and rewrite these.
+  # Shape and mechanics are correct; the numbers assume a conservative 20 ms per
+  # request, so 50 req/s for one worker, 10 arrivals/s. The local probe measured
+  # 3.0 ms against a container-local Postgres, so these err low.
   phases:
-    # Phase 1 - Warm-up:
-    # Gradually warms the environments without pressure.
-    # Ensures Lambda starts containers, ECS pulls images if needed, and EC2 establishes steady CPU usage.
-    # Captures cold-start behavior and stabilizes connections/caches before real load.
-    - duration: 360        # 6 minutes
-      arrivalRate: 5
+  # FIVE requests per arrival: arrivalCount is one fifth of the request rate.
+  # arrivalCount, not arrivalRate: a rate starts every user of a second at once.
 
-    # Phase 2 - Primary Soak (steady-state load):
-    # Maintains a realistic constant load to observe long-term behavior.
-    # Ideal to reveal steady-state latency once caches and JIT have settled on each platform.
-    # This phase is crucial to compare environments under sustained, non-burst conditions.
-    - duration: 600        # 10 minutes
-      arrivalRate: 20
+    # Warm-up at the primary rate. Discarded.
+    - duration: 180
+      arrivalCount: 900
 
-    # Phase 3 - Stress Peak:
-    # Pushes the environments to higher pressure to expose bottlenecks.
-    # Used to analyze how Lambda rejects with HTTP 429 at reserved concurrency 1,
-    # while EC2 and ECS queue instead and degrade in latency.
-    # Reveals p95/p99 degradation patterns beyond normal workloads.
-    - duration: 360        # 6 minutes
-      arrivalRate: 50
+    # Probe, 1.5 arrivals/s = 7.5 req/s, 15% of the assumed ceiling.
+    - duration: 360
+      arrivalCount: 540
 
-    # Phase 4 - Recovery + Secondary Soak:
-    # Returns the load to the same level as the first soak to observe recovery behavior.
-    # Validates if latencies return to pre-stress levels or if any environment remains degraded.
-    # Critical to detect whether any platform remains degraded after the peak.
-    - duration: 600        # 10 minutes
-      arrivalRate: 20
+    # Probe, 3 arrivals/s = 15 req/s, 30%.
+    - duration: 360
+      arrivalCount: 1080
+
+    # Primary, 5 arrivals/s = 25 req/s, 50%. Source of every reported figure.
+    - duration: 720
+      arrivalCount: 3600
+
+    # Probe, 7 arrivals/s = 35 req/s, 70%. A throttled Lambda behind the ALB
+    # returns 502, not 429; count 502s or read CloudWatch Throttles.
+    - duration: 360
+      arrivalCount: 2520
 
   defaults:
     headers:

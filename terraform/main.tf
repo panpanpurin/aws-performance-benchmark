@@ -83,6 +83,7 @@ module "rds" {
 
   name              = local.name_prefix
   subnet_ids        = module.network.private_subnet_ids
+  availability_zone = local.benchmark_az
   security_group_id = module.security_groups.rds_sg_id
   instance_class    = var.rds_instance_class
   engine_version    = var.rds_engine_version
@@ -155,7 +156,7 @@ module "ec2_apps" {
   name                  = local.name_prefix
   ami_id                = local.ec2_ami_id
   instance_type         = var.ec2_instance_type
-  subnet_ids            = module.network.private_subnet_ids
+  subnet_ids            = local.compute_subnet_ids
   security_group_ids    = [module.security_groups.ec2_sg_id]
   instance_profile_name = module.iam.ec2_instance_profile_name
   cpu_credits           = var.cpu_credits
@@ -185,7 +186,7 @@ module "ecs_cluster" {
 
   name                            = local.name_prefix
   vpc_id                          = module.network.vpc_id
-  private_subnet_ids              = module.network.private_subnet_ids
+  private_subnet_ids              = local.compute_subnet_ids
   ami_id                          = local.ecs_ami_id
   instance_type                   = var.ecs_instance_type
   cpu_credits                     = var.cpu_credits
@@ -239,7 +240,7 @@ module "lambda_apps" {
   ephemeral_mb              = var.lambda_ephemeral_mb
   timeout_s                 = var.lambda_timeout_s
   function_url_auth_type    = var.lambda_function_url_auth_type
-  private_subnet_ids        = module.network.private_subnet_ids
+  private_subnet_ids        = local.compute_subnet_ids
   lambda_security_group_ids = [module.security_groups.lambda_sg_id]
   db_host                   = var.enable_rds ? module.rds[0].address : ""
   db_port                   = 5432

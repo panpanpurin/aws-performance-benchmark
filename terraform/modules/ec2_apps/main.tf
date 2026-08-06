@@ -3,6 +3,11 @@ locals {
   app_keys    = keys(var.apps)
 }
 
+# subnet_id below spreads the apps over subnet_list by application index. That is
+# only meaningful when the list holds more than one subnet: the root stack passes
+# a single pinned subnet by default, so every app lands in the benchmark zone and
+# the index has no effect. See pin_compute_az.
+
 resource "aws_instance" "app" {
   for_each = var.apps
 

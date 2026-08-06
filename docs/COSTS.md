@@ -193,15 +193,15 @@ Request volume comes from the Artillery phase definitions in
 
 | Suite | Duration | Requests per platform | Mean Lambda duration |
 |-------|----------|-----------------------|----------------------|
-| anilove | 32 min | 43,800 | 45 ms (estimate) |
+| anilove | 33 min | 43,200 | 45 ms (estimate) |
 | csv-processor | 27 min | 20,280 | 35.8 ms (CloudWatch, 2026-08-04) |
 | thumbnail-generator | 33 min | 5,580 | ~143 ms (derived, see PAPER-SSCAD-2026.md) |
-| **Total** | | **69,660** | |
+| **Total** | | **69,060** | |
 
 At 1769 MB (1.73 GB, one full vCPU):
 
 - Compute: ~3,400 GB-seconds x $0.0000166667 = **$0.06**
-- Requests: 69,660 x $0.20/million = **$0.01**
+- Requests: 69,060 x $0.20/million = **$0.01**
 
 **≈ $0.08 per full sweep**, before free tier. Raising Lambda from 1024 MB to
 1769 MB is close to cost-neutral for CPU-bound work: memory rises 1.7x while

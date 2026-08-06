@@ -51,3 +51,9 @@ variable "tags" {
   description = "Extra tags."
   default     = {}
 }
+
+variable "availability_zone" {
+  description = "Zone for the instance. Null lets AWS choose. The subnet group still spans several zones, as AWS requires."
+  type        = string
+  default     = null
+}

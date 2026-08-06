@@ -317,3 +317,28 @@ variable "artillery_version" {
   description = "Artillery version installed on the load generator. Kept equal to the version benchmarks/scripts/run-parallel.sh resolves locally."
   default     = "2.0.23"
 }
+
+# EC2 took a subnet by application index, the ECS ASG spanned every private
+# subnet, and RDS took whichever zone AWS picked, so an app's EC2 instance could
+# sit in a different zone from the database while its ECS task did not, paying a
+# cross-zone hop per query. That produced a 2.5x EC2-versus-ECS difference on the
+# I/O-bound workload that was placement, not platform.
+#
+# The ALB and the DB subnet group still span several zones, as AWS requires;
+# only the instances are pinned.
+variable "pin_compute_az" {
+  description = "Place EC2, ECS, Lambda and RDS in a single availability zone so placement is not a variable."
+  type        = bool
+  default     = true
+}
+
+variable "benchmark_az_index" {
+  description = "Index into the private subnet list selecting the pinned zone. Ignored when pin_compute_az is false."
+  type        = number
+  default     = 0
+
+  validation {
+    condition     = var.benchmark_az_index >= 0
+    error_message = "benchmark_az_index must be zero or greater."
+  }
+}

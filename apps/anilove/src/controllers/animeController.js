@@ -73,9 +73,19 @@ const createAnime = async (req, res) => {
 };
 
 // READ ALL
+//
+// Fixed page, not the whole table: unbounded, the cost grew with the rows in
+// flight, and platforms that queue hold more of them than one that rejects.
+// Seeded rows hold the lowest ids, so ordering by id returns the same page.
+// Seed with make db-reset (AWS) or seedDB.js (local).
+const LIST_PAGE_SIZE = Number(process.env.LIST_PAGE_SIZE || 100);
+
 const getAllAnimes = async (_req, res) => {
   try {
-    const list = await Anime.findAll();
+    const list = await Anime.findAll({
+      order: [['id', 'ASC']],
+      limit: LIST_PAGE_SIZE,
+    });
     res.json(list);
   } catch (error) {
     console.error('Error fetching animes:', error);

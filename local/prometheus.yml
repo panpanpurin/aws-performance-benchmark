@@ -3,32 +3,47 @@ global:
   evaluation_interval: 5s
 
 scrape_configs:
-  - job_name: anilove-local
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['anilove:3000']
-        labels:
-          service: anilove
-          environment: local
-          instance: local
+  # Disabled while the render test is active: render-test-ec2 already scrapes
+  # the anilove container, and the other two apps are idle, so these would add a
+  # duplicate series and an unrelated one to dashboards that group by service.
+  # Restore with: git checkout local/prometheus.yml
+  # - job_name: anilove-local
+  # metrics_path: /metrics
+  # static_configs:
+  # - targets: ['anilove:3000']
+  # labels:
+  # service: anilove
+  # environment: local
+  # instance: local
 
-  - job_name: csv-processor-local
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['csv-processor:8000']
-        labels:
-          service: csv-processor
-          environment: local
-          instance: local
 
-  - job_name: thumbnail-generator-local
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['thumbnail-generator:3001']
-        labels:
-          service: thumbnail-generator
-          environment: local
-          instance: local
+  # Disabled while the render test is active: render-test-ec2 already scrapes
+  # the anilove container, and the other two apps are idle, so these would add a
+  # duplicate series and an unrelated one to dashboards that group by service.
+  # Restore with: git checkout local/prometheus.yml
+  # - job_name: csv-processor-local
+  # metrics_path: /metrics
+  # static_configs:
+  # - targets: ['csv-processor:8000']
+  # labels:
+  # service: csv-processor
+  # environment: local
+  # instance: local
+
+
+  # Disabled while the render test is active: render-test-ec2 already scrapes
+  # the anilove container, and the other two apps are idle, so these would add a
+  # duplicate series and an unrelated one to dashboards that group by service.
+  # Restore with: git checkout local/prometheus.yml
+  # - job_name: thumbnail-generator-local
+  # metrics_path: /metrics
+  # static_configs:
+  # - targets: ['thumbnail-generator:3001']
+  # labels:
+  # service: thumbnail-generator
+  # environment: local
+  # instance: local
+
 
   - job_name: artillery-ec2
     static_configs:
@@ -63,7 +78,7 @@ scrape_configs:
   - job_name: render-test-ec2
     metrics_path: /metrics
     static_configs:
-      - targets: ['thumbnail-generator:3001']
+      - targets: ['anilove:3000']
         labels:
           service: app-instrumented-ec2
           environment: local
@@ -72,7 +87,7 @@ scrape_configs:
   - job_name: render-test-ecs
     metrics_path: /metrics
     static_configs:
-      - targets: ['render-test-thumbnail-ecs:3001']
+      - targets: ['render-test-anilove-ecs:3000']
         labels:
           service: app-instrumented-ecs
           environment: local
@@ -81,7 +96,7 @@ scrape_configs:
   - job_name: render-test-lambda
     metrics_path: /metrics
     static_configs:
-      - targets: ['render-test-thumbnail-lambda:3001']
+      - targets: ['render-test-anilove-lambda:3000']
         labels:
           service: app-instrumented-lambda
           environment: local
