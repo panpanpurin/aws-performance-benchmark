@@ -29,15 +29,20 @@ const fs = require("fs");
 const path = require("path");
 const root = ".";
 
-// Rates are a fraction of the estimated ceiling so queueing never contributes.
+// Rates are a fraction of the ceiling so queueing never contributes. `ceiling`
+// is the binding one, which is Lambda's on every suite, and is used only to
+// state the pilot's utilisation in the generated comment.
+//
+// csv-processor's is measured (pilot 2026-08-04, from CloudWatch Duration);
+// thumbnail-generator's is derived from it (2026-08-05, see its test-*.yml)
 //
 // reqsPerArrival: arrivalRate counts virtual users, not requests, and each runs
 // the whole scenario. AniLove's flow is a five-step CRUD cycle; csv and
 // thumbnail issue one request per arrival.
 const suites = {
   "anilove": { warmRate: 1, rate: 1, measure: 300, ceiling: 22, reqsPerArrival: 5 },
-  "csv-processor": { warmRate: 1, rate: 2, measure: 360, ceiling: 5.7, reqsPerArrival: 1 },
-  "thumbnail-generator": { warmRate: 1, rate: 1, measure: 420, ceiling: 3.4, reqsPerArrival: 1 },
+  "csv-processor": { warmRate: 1, rate: 2, measure: 360, ceiling: 28, reqsPerArrival: 1 },
+  "thumbnail-generator": { warmRate: 1, rate: 1, measure: 420, ceiling: 7, reqsPerArrival: 1 },
 };
 
 function phasesBlock(cfg) {
@@ -78,7 +83,10 @@ for (const [suite, cfg] of Object.entries(suites)) {
       console.log(`SKIP  ${suite}/test-${platform}.yml not found`);
       continue;
     }
-    let text = fs.readFileSync(src, "utf8");
+    // Normalise to LF before matching. git converts these files to CRLF on
+    // checkout on Windows, and the patterns below anchor on \n, so a fresh
+    // clone would otherwise fail to locate the phases block in every suite.
+    let text = fs.readFileSync(src, "utf8").replace(/\r\n/g, "\n");
 
     if (/REPLACE_ME/.test(text)) {
       console.log(`WARN  ${suite}/test-${platform}.yml still has REPLACE_ME - run sync-targets first`);

@@ -53,3 +53,36 @@ scrape_configs:
           service: artillery-lambda
           environment: local
           instance: lambda
+
+  # --- Dashboard rendering check, not a measurement -------------------------
+  # Gives the suite dashboard the three `service` values it splits on, so the
+  # panels can be inspected locally. The targets are identical containers on one
+  # host and compare nothing. Two of them exist only while
+  # local/render-test/docker-compose.yml is up, and read as down otherwise.
+
+  - job_name: render-test-ec2
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['thumbnail-generator:3001']
+        labels:
+          service: app-instrumented-ec2
+          environment: local
+          instance: ec2
+
+  - job_name: render-test-ecs
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['render-test-thumbnail-ecs:3001']
+        labels:
+          service: app-instrumented-ecs
+          environment: local
+          instance: ecs
+
+  - job_name: render-test-lambda
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['render-test-thumbnail-lambda:3001']
+        labels:
+          service: app-instrumented-lambda
+          environment: local
+          instance: lambda

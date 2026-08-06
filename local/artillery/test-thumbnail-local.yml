@@ -1,17 +1,19 @@
-# Local Docker thumbnail generator - short phases
+# Local thumbnail generator, doubling as a workstation service-time probe.
+# Query params match the AWS suite (200x400, jpg, q80); changing them makes the
+# number unusable for deriving the AWS phases.
 config:
   target: "http://localhost:3001"
   processor: "./upload-image.js"
 
   phases:
-    - duration: 30
-      arrivalRate: 2
+    # Discard. Absorbs container start, JIT and the first sharp allocations.
     - duration: 60
-      arrivalRate: 4
-    - duration: 30
-      arrivalRate: 6
-    - duration: 30
-      arrivalRate: 2
+      arrivalCount: 120
+
+    # Measure. 3 req/s against a ceiling near 14, so nothing queues and the
+    # timer reads service time. ~720 timed requests.
+    - duration: 240
+      arrivalCount: 720
 
   defaults:
     http:
@@ -32,5 +34,5 @@ scenarios:
   - name: Upload image (local)
     flow:
       - post:
-          url: "/thumbnail?width=200&height=200&format=jpg&quality=80"
+          url: "/thumbnail?width=200&height=400&format=jpg&quality=80"
           beforeRequest: "buildFormData"

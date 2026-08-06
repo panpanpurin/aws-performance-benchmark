@@ -1,0 +1,39 @@
+# Dashboard rendering check, NOT a measurement.
+#
+# Adds two more copies of the thumbnail container so the suite dashboard has the
+# three series it splits on and the panels can be inspected before an AWS
+# session. The containers are identical and share one host's CPU, so they
+# compare nothing. Reuses the image and network from `make local-up`.
+#
+#   docker compose -f local/render-test/docker-compose.yml up -d
+#   docker compose -f local/render-test/docker-compose.yml down
+
+services:
+  thumbnail-ecs:
+    image: aws-performance-benchmark-thumbnail-generator:latest
+    container_name: render-test-thumbnail-ecs
+    environment:
+      PORT: "3001"
+      NODE_ENV: production
+      SERVICE_NAME: thumbnail-generator
+    ports:
+      - "3011:3001"
+    networks:
+      - benchmark
+
+  thumbnail-lambda:
+    image: aws-performance-benchmark-thumbnail-generator:latest
+    container_name: render-test-thumbnail-lambda
+    environment:
+      PORT: "3001"
+      NODE_ENV: production
+      SERVICE_NAME: thumbnail-generator
+    ports:
+      - "3021:3001"
+    networks:
+      - benchmark
+
+networks:
+  benchmark:
+    external: true
+    name: aws-performance-benchmark_benchmark

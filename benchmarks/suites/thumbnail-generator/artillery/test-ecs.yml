@@ -10,33 +10,34 @@ config:
   # Every platform serves with exactly one 1-vCPU worker.
   # ============================================================
   phases:
-  # arrivalCount, not arrivalRate: arrivalRate starts N users on the same
-  # instant, which one Lambda sandbox cannot absorb. csv-processor at 12 req/s
-  # saw 234 HTTP 502s with arrivalRate, 3 with arrivalCount.
-  # One request per arrival, so arrivals == requests.
+  # Derived from a workstation measurement of this fixture, 2026-08-06: 77.6 ms
+  # mean in-app, n=719. The 1.354x csv-processor factor puts it near 57 ms on
+  # c6i, so EC2/ECS cap near 17 req/s and Lambda near 7, the lower of the
+  # multiplicative and additive models. Not a pilot: run make pilot-thumbnail
+  # and re-derive before publishing.
+  #
+  # arrivalCount, not arrivalRate: a rate starts every virtual user of a second
+  # at the same instant. One request per arrival, so arrivals == requests.
 
-    # Warm-up at the primary rate; warming lower leaves the step transient
-    # inside the reported window. Discarded.
+    # Warm-up at the primary rate. Discarded.
     - duration: 180
-      arrivalCount: 2520
+      arrivalCount: 540
 
-    # Probe, 4 req/s - 13% of Lambda's ceiling, 5% of EC2/ECS.
+    # Probe, 1 req/s - 14% of Lambda's ceiling, 6% of EC2/ECS.
     - duration: 360
-      arrivalCount: 1440
+      arrivalCount: 360
 
-    # Probe, 8 req/s - 26% / 11%.
+    # Probe, 2 req/s - 29% / 12%.
     - duration: 360
-      arrivalCount: 2880
+      arrivalCount: 720
 
-    # Primary, 14 req/s - 46% of Lambda's ceiling, 19% of EC2/ECS.
-    # Every reported latency figure comes from here; ~10000 requests.
+    # Primary, 3 req/s - 43% / 18%. Source of every reported figure.
     - duration: 720
-      arrivalCount: 10080
+      arrivalCount: 2160
 
-    # Probe, 20 req/s - 66%, the closest approach to the knee. Throttling
-    # here is a result, not a misconfiguration; report it.
+    # Probe, 5 req/s - 71% / 29%. Throttling here is a result, report it.
     - duration: 360
-      arrivalCount: 7200
+      arrivalCount: 1800
 
   defaults:
     headers:

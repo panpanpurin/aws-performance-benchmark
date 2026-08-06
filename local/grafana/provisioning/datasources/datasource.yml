@@ -3,6 +3,9 @@ apiVersion: 1
 datasources:
   - name: Prometheus
     type: prometheus
+    # Pinned: the provisioned dashboards reference this uid. Without it Grafana
+    # generates one and every panel reports a missing datasource.
+    uid: prometheus
     access: proxy
     url: http://prometheus:9090
     isDefault: true

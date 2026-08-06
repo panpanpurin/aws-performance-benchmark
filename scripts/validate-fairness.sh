@@ -147,6 +147,16 @@ else
   fail "sharp.concurrency(1) missing from thumbnail-generator - Sharp would scale to all cores"
 fi
 
+# Every request uploads the same fixture with the same params, so the libvips
+# operation cache would turn the workload into a cache lookup. It would also not
+# degrade equally: the cache is memory-bounded, and Lambda has 1769 MB against
+# 1024 MB elsewhere.
+if [[ -f "$sharp" ]] && grep -q "sharp.cache(false)" "$sharp"; then
+  ok "thumbnail disables the sharp/libvips operation cache"
+else
+  fail "sharp.cache(false) missing from thumbnail-generator (identical fixtures would be served from cache)".
+fi
+
 # app_cpu_usage_percent must be a percentage of the one vCPU each worker is
 # allocated. os.cpus() reads the host rather than the cgroup, so using it as the
 # divisor both halves the figure inside a --cpus=1 container and can differ

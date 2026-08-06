@@ -1,0 +1,33 @@
+# GENERATED for the dashboard rendering check. Not a measurement:
+# the three targets are identical containers sharing one host's CPU.
+config:
+  target: "http://localhost:3011"
+  processor: "../artillery/upload-image.js"
+
+  phases:
+    - duration: 30
+      arrivalCount: 60
+    - duration: 240
+      arrivalCount: 480
+
+  defaults:
+    http:
+      timeout: 60
+
+  plugins:
+    publish-metrics:
+      - type: prometheus
+        pushgateway: "http://localhost:9092"
+        testName: "thumbnail-render-test"
+        environment: "local"
+        labels:
+          service: "thumbnail-service"
+          scenario: "upload-formdata"
+          instance: ecs
+
+scenarios:
+  - name: Upload image (render test ecs)
+    flow:
+      - post:
+          url: "/thumbnail?width=200&height=400&format=jpg&quality=80"
+          beforeRequest: "buildFormData"
