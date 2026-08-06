@@ -195,13 +195,13 @@ Request volume comes from the Artillery phase definitions in
 |-------|----------|-----------------------|----------------------|
 | anilove | 32 min | 43,800 | 45 ms (estimate) |
 | csv-processor | 27 min | 20,280 | 35.8 ms (CloudWatch, 2026-08-04) |
-| thumbnail-generator | 33 min | 24,120 | ~33 ms (derived, see PAPER-SSCAD-2026.md) |
-| **Total** | | **88,200** | |
+| thumbnail-generator | 33 min | 5,580 | ~143 ms (derived, see PAPER-SSCAD-2026.md) |
+| **Total** | | **69,660** | |
 
 At 1769 MB (1.73 GB, one full vCPU):
 
 - Compute: ~3,400 GB-seconds x $0.0000166667 = **$0.06**
-- Requests: 88,200 x $0.20/million = **$0.02**
+- Requests: 69,660 x $0.20/million = **$0.01**
 
 **≈ $0.08 per full sweep**, before free tier. Raising Lambda from 1024 MB to
 1769 MB is close to cost-neutral for CPU-bound work: memory rises 1.7x while

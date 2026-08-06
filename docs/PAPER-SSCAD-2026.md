@@ -24,8 +24,8 @@ compute model is the only intended difference.
 | Lambda | 1769 MB (one full vCPU), 1024 MB ephemeral, 30 s timeout, container image, **reserved concurrency 1** |
 | Database | one `db.m6g.large` PostgreSQL 17.6, Single-AZ, shared by all platforms |
 | Load generator | Artillery 2.0.23, in-region; five phases, ~27 min per csv run, ~33 min per thumbnail run |
-| Arrivals per run | 43,800 (anilove, estimated), **20,280 (csv, measured phases)**, **24,120 (thumbnail, derived phases)** |
-| HTTP requests per run | **219,000** (anilove — 5 per arrival), 20,280 (csv), 24,120 (thumbnail) |
+| Arrivals per run | 43,800 (anilove, estimated), **20,280 (csv, measured phases)**, **5,580 (thumbnail, derived phases)** |
+| HTTP requests per run | **219,000** (anilove — 5 per arrival), 20,280 (csv), 5,580 (thumbnail) |
 
 **Every platform gets one vCPU and 1 GB**, enforced three different ways: the
 ECS task definition caps CPU units and memory, the EC2 `docker run` is given
@@ -237,18 +237,48 @@ platforms" below.
 anilove still carries estimated rates and a warning banner in its `test-*.yml`.
 Pilot it before its numbers are used.
 
-**thumbnail-generator was rescheduled on 2026-08-05.** Its service time had never
-been measured and the ~290 ms estimate above was wrong by roughly 20x, the same
-inversion csv-processor hit. Both apps were measured on one workstation under
-Docker, uncontended at 1 req/s, n=180, using the AWS fixtures and query params:
-csv-processor 19.48 ms, thumbnail 17.97 ms. csv-processor's c6i.large figures are
-known from its pilot, which gives a workstation factor of 1.354x and puts
-thumbnail's binding Lambda ceiling near 30 req/s rather than 3.4. Its old 12 req/s
-peak was at ~40% of the real ceiling, under-saturated rather than 3.5x over it.
-The schedule now mirrors csv-processor's: warm-up and primary at 14 req/s, probes
-at 4, 8 and 20. That is a derivation, not a pilot, and it only has to be roughly
-right - anywhere from 1.0x to 2.0x the primary stays at 33-66% of the ceiling.
-Run `make pilot-thumbnail` before quoting a number.
+**thumbnail-generator was rescheduled on 2026-08-05, and again on 2026-08-06
+when its fixture changed.** Its service time had never been measured and the
+~290 ms estimate above was wrong by roughly 20x, the same inversion
+csv-processor hit.
+
+The fixture is now a single 7.1 MP, 0.91 MB JPEG, replacing a 0.5 MP one.
+Measured on one workstation under Docker, uncontended, n=719, with the AWS query
+params: **77.6 ms mean in-application, of which the sharp pipeline is 76.9**.
+Framework overhead is therefore 0.8 ms, which is the evidence that this workload
+measures the native library rather than Express. csv-processor's c6i.large pilot
+gives a workstation factor of 1.354x, putting thumbnail near 57 ms on c6i and
+its EC2/ECS ceiling near 17 req/s.
+
+For Lambda the two models that agreed on the previous fixture now diverge by
+almost a factor of two. Carrying csv-processor's Lambda penalty across as a
+factor (x2.49) gives 143 ms and a 7 req/s ceiling; as a constant (+21.4 ms) it
+gives 79 ms and 13 req/s. Fixed invocation overhead weighs proportionally less
+on a 57 ms workload than on a 14 ms one, and the 0.91 MB upload must be
+base64-decoded inside the invocation, a cost that scales with payload and that
+csv-processor's 533 KB pays less of. The lower bound is used: warm-up and
+primary at **3 req/s**, probes at **1, 2 and 5**, which holds csv-processor's
+utilisation shape (14%, 29%, 43%, 71% of the binding ceiling). 5,580 arrivals
+over 33 minutes.
+
+That is a derivation, not a pilot. `make pilot-thumbnail` is what resolves the
+disagreement above, and if the ceiling proves to be 13 rather than 7 the primary
+should double to 6 req/s.
+
+**The lower ceiling costs tail samples.** The primary phase yields 2,160
+requests against csv-processor's 10,080, so its P99 rests on roughly 22 tail
+samples rather than 100, while its P95 still rests on ~108. Extending the
+primary from 12 to 30 minutes recovers the tail at the cost of an
+18-minute-longer run. The current schedule does not, so a thumbnail P99 is
+weaker than a csv-processor one and captions should not imply otherwise.
+
+**Upload size is capped at 1 MB by the load balancer, not by the application.**
+An ALB target group backed by a Lambda function rejects request bodies above
+1 MB, while EC2 and ECS have no such limit. An oversize fixture therefore fails
+on one platform only, and the loss reads as a platform result rather than as a
+transport limit. Four candidate fixtures between 1.5 and 5.5 MB were discarded
+for this reason; multer's own 5 MB limit applies everywhere and binds later.
+`upload-image.js` checks both at load time rather than mid-run.
 
 Its probes run 360 s rather than csv-processor's 240 s. Dashboard panels read
 `rate(...[5m])`, so nothing inside a 240 s phase can be read without pulling in
