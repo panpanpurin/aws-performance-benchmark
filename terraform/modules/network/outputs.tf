@@ -19,8 +19,10 @@ output "private_subnet_ids" {
 }
 
 output "availability_zones" {
-  description = "AZs used by this network."
-  value       = local.azs
+  description = "AZs used by this network, ordered like the subnet outputs."
+  # Sorted to match public_subnet_ids and private_subnet_ids. The root stack
+  # indexes all three with benchmark_az_index, and RDS takes its zone from here.
+  value = sort(local.azs)
 }
 
 output "nat_gateway_id" {

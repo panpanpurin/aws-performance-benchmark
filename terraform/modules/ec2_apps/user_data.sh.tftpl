@@ -1,7 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-dnf update -y || true
+# No dnf update: the ECS host does not patch at boot either, and an unpinned
+# package set would differ between repetitions.
 dnf install -y docker aws-cli jq
 systemctl enable --now docker
 
@@ -47,11 +48,10 @@ if [[ -n "$IMAGE" ]]; then
   # because the task definition declares none, and Lambda has no equivalent. The
   # ALB target group is the health authority for every platform.
   #
-  # --network host instead of -p: published ports add Docker DNAT that the ECS
-  # task does not pay, since awsvpc gives it its own ENI. One app per host, so
-  # the container gains nothing from its own network namespace.
+  # -p publishes the port through Docker's DNAT, which the ECS task avoids via
+  # its own ENI. The hop is outside the in-app timer and below measurement
+  # resolution, and this is how Docker is normally run on a VM.
   docker run -d --name "$APP" --restart unless-stopped --no-healthcheck \
-    --network host \
     --cpus="${container_cpus}" --memory="${container_memory_mb}m" \
-    "$${ENV_ARGS[@]}" "$IMAGE"
+    -p "$PORT:$PORT" "$${ENV_ARGS[@]}" "$IMAGE"
 fi

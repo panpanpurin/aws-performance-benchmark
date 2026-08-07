@@ -64,7 +64,7 @@ From `terraform/`, with the committed `terraform.tfvars`:
 - 3 EC2 app instances (`c6i.large`, one per app), private subnets, 20 GB gp3 each;
   each app container is capped at 1 vCPU / 1024 MB to match the ECS task
 - 1 ECS cluster on an ASG of `c6i.large`, 30 GB gp3 each
-- 1 RDS `db.m6g.large` (non-burstable), 20 GB gp3, Single-AZ, 1-day backup
+- 1 RDS `db.m6g.large` (non-burstable), 20 GB gp3, Single-AZ, no backup
   retention, Performance Insights on the free 7-day tier
 - 3 Lambda functions, 1769 MB (one full vCPU), container image, Function URLs
 - 6 ECR images (3 apps x EC2/ECS + Lambda variants), 2 secrets, 9 log groups

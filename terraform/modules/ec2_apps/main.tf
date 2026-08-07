@@ -17,6 +17,10 @@ resource "aws_instance" "app" {
   vpc_security_group_ids = var.security_group_ids
   iam_instance_profile   = var.instance_profile_name
 
+  # cloud-init runs once per instance, so an edited script only takes effect on
+  # a fresh instance. Without this the apply succeeds and changes nothing.
+  user_data_replace_on_change = true
+
   user_data = base64encode(templatefile("${path.module}/user_data.sh.tftpl", {
     app_name            = each.value.name
     app_port            = each.value.port
