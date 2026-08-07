@@ -2,6 +2,8 @@ data "aws_availability_zones" "available" {
   state = "available"
 }
 
+data "aws_region" "current" {}
+
 locals {
   azs = slice(data.aws_availability_zones.available.names, 0, var.az_count)
 
@@ -144,4 +146,18 @@ resource "aws_route_table_association" "private" {
 
   subnet_id      = each.value.id
   route_table_id = aws_route_table.private.id
+}
+
+# Gateway endpoints are free. ECR serves image layers from S3, so every instance
+# and task pull would otherwise be billed as NAT data processing and be slower.
+resource "aws_vpc_endpoint" "s3" {
+  vpc_id            = aws_vpc.this.id
+  service_name      = "com.amazonaws.${data.aws_region.current.name}.s3"
+  vpc_endpoint_type = "Gateway"
+  route_table_ids   = [aws_route_table.private.id]
+
+  tags = merge(var.tags, {
+    Name      = "${var.name}-s3"
+    Component = "network"
+  })
 }

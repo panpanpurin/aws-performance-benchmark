@@ -11,7 +11,8 @@ On Windows use **Git Bash** or **WSL**.
 | `validate-benchmark-config.sh` | Pre-run: Artillery targets/Host headers/pushgateway ports, Prometheus jobs, compose ports |
 | `validate-aws-state.sh` | Post-apply: target-group health, ECS counts, EC2 status checks, Lambda, RDS |
 | `validate-fairness.sh` | Only-compute-varies: shared metric names, 1-vCPU pins, deployed specs, live `/metrics` |
-| `push-ecr.sh` | Build and push app images to ECR |
+| `push-ecr.sh` | Build and push app images to ECR; pins every digest in `terraform/image-digests.auto.tfvars` |
+| `run-manifest.sh` | Snapshot git SHA, AMIs, image digests and config next to a run's logs |
 | `sync-artillery-targets.sh` | Fill Artillery and Prometheus targets from `terraform/generated/benchmark-targets.json` |
 | `health-check.sh` | `/health` for ALB hosts + Lambda URLs |
 | `ecs-scale.sh` | Scale ECS services and ASG (`up` / `down` / `status`) |

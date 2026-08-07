@@ -60,6 +60,10 @@ mkdir -p "$OUTDIR"
 section "$SUITE ($MODE) on $INSTANCE"
 echo "run id: $STAMP"
 
+# Provenance next to the logs. Advisory: a failure here must not lose a run.
+bash "$ROOT/scripts/run-manifest.sh" "$SUITE" "$STAMP" "$ROOT/$OUTDIR" ||
+  echo "WARN could not write run manifest" >&2
+
 # NODE_PATH resolves form-data from the global install.
 read -r -d '' SCRIPT <<EOF || true
 set -eux

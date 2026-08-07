@@ -207,6 +207,18 @@ variable "vpc_cidr" {
   default     = "10.40.0.0/16"
 }
 
+variable "budget_alert_emails" {
+  type        = list(string)
+  description = "Recipients for the monthly cost alarm. Empty disables the budget."
+  default     = []
+}
+
+variable "monthly_budget_usd" {
+  type        = number
+  description = "Monthly cost threshold. A session costs a few dollars; a stack left running after a failed destroy costs hundreds."
+  default     = 50
+}
+
 variable "enable_nat_gateway" {
   type        = bool
   description = "Create one NAT gateway for private subnet egress."

@@ -112,6 +112,10 @@ done
 
 mkdir -p logs
 stamp="$(date +%Y%m%d-%H%M%S)"
+
+# Provenance next to the logs. Advisory: a failure here must not lose a run.
+( cd "$ROOT" && bash scripts/run-manifest.sh "$SUITE" "$stamp" "$ART_DIR/logs" ) ||
+  echo "WARN could not write run manifest" >&2
 trap 'echo; echo "Stopping..."; pkill -P $$ 2>/dev/null || true; wait 2>/dev/null || true; exit 130' INT
 
 echo "========================================"

@@ -70,7 +70,13 @@ From `terraform/`, with the committed `terraform.tfvars`:
 - 6 ECR images (3 apps x EC2/ECS + Lambda variants), 2 secrets, 9 log groups
 
 Both EC2 apps and ECS container instances sit in **private** subnets, so all
-their egress (ECR pulls, package downloads) passes through the NAT gateway.
+their egress (package downloads) passes through the NAT gateway. ECR image
+layers do not: an S3 gateway endpoint routes them off the NAT, which is free and
+also speeds up every bring-up.
+
+Set `budget_alert_emails` to be told when a stack outlives its session. The
+threshold is `monthly_budget_usd` (default 50), alerting at 50% actual and 100%
+forecast.
 
 ## Scenario A: everything left running, 730 hours
 
