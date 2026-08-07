@@ -52,7 +52,7 @@ help:
 	@echo ""
 	@echo "AWS metrics (Docker)"
 	@echo "  make bench-anilove|bench-csv|bench-thumbnail"
-	@echo "  make metrics-proxy     AniLove EC2/ECS scrape proxy (Node)"
+	@echo "  make metrics-proxy     EC2/ECS scrape proxy; HTTP-only stacks"
 	@echo ""
 	@echo "Load tests"
 	@echo "  make pilot-anilove|csv|thumbnail   ~7 min service-time probe (run this first)"
@@ -140,7 +140,6 @@ local-test-thumbnail: artillery-install
 
 bench-anilove:
 	cd benchmarks/suites/anilove && docker compose up -d
-	@echo "Also run: make metrics-proxy"
 
 bench-csv:
 	cd benchmarks/suites/csv-processor && docker compose up -d

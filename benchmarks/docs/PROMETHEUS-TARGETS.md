@@ -2,9 +2,13 @@
 
 Suite config: `benchmarks/suites/<app>/prometheus.yml`.
 
+`make sync-targets` fills all three `instrumented-metrics-*` jobs. Edit by hand
+only when working without terraform outputs.
+
 | Job type | In repo | Notes |
 |----------|---------|--------|
-| `instrumented-metrics-*` | Empty `[]` | App `/metrics` hosts or Lambda Function URL host |
+| `instrumented-metrics-ec2/-ecs` | metrics-proxy port | With a domain: the ALB hostname plus `scheme: https`. Without one: `host.docker.internal:<proxy port>` |
+| `instrumented-metrics-lambda` | Empty `[]` | Host part of the Function URL, `scheme: https` |
 | `node-exporter-*` | Empty `[]` | Optional EC2/ECS `:9100` |
 | `artillery-metrics-*` | Filled | Compose service names (`pushgateway-*:9091`) |
 
@@ -18,7 +22,10 @@ Suite config: `benchmarks/suites/<app>/prometheus.yml`.
 
 ## Fill format
 
+EC2/ECS with a domain (hostname resolves, certificate covers it):
+
 ```yaml
+scheme: https
 static_configs:
   - targets: ['anilove-ec2.example.com']
     labels:
@@ -26,6 +33,9 @@ static_configs:
       environment: production
       instance: ec2
 ```
+
+Without a domain, drop `scheme` and point at the metrics proxy on the host
+(`host.docker.internal:18080`); see [PORTS.md](./PORTS.md) for the port map.
 
 Lambda (host only, no `https://`):
 

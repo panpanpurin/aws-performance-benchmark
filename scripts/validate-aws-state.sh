@@ -262,7 +262,7 @@ fi
 
 echo
 if [[ -n "$ALB_DNS" ]]; then
-  echo "ALB: http://$ALB_DNS   (per-app /health: make health)"
+  echo "ALB: $(discover_scheme)://$ALB_DNS   (per-app /health: make health)"
 fi
 
 validate_summary "AWS state"

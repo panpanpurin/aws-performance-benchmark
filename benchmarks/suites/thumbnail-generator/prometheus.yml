@@ -1,12 +1,10 @@
 # Thumbnail generator scrape config.
-# App metrics: scrapes host metrics-proxy ports (node scripts/metrics-proxy.js).
+# App metrics: targets written by make sync-targets.
 # Artillery: pushgateways inside Docker.
 #
-# The EC2/ECS jobs go through the proxy rather than straight at the ALB because
-# Prometheus cannot set a Host header and the ALB routes by hostname. Without a
-# registered domain the hostnames are *.bench.local and resolve nowhere, so
-# targeting them directly does not work either. The Lambda target is a real DNS
-# name and is scraped directly; make sync-targets fills it.
+# EC2/ECS scrape the ALB hostnames over HTTPS. Without a domain they go through
+# scripts/metrics-proxy.js instead: Prometheus cannot set a Host header and
+# *.bench.local resolves nowhere.
 
 global:
   scrape_interval: 5s

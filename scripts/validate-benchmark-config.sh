@@ -64,8 +64,12 @@ prometheus_jobs() {
   ' "$1"
 }
 
+# HTTPS targets the hostname; HTTP targets the ALB DNS with a Host header.
+SCHEME="$(discover_scheme)"
+
 echo "=== Benchmark config validation ==="
 echo "suites: ${SUITES[*]}"
+echo "scheme: $SCHEME"
 
 # --- Compose feature level -------------------------------------------------
 # Suites use `include:`, which Compose only understands from v2.20.
@@ -132,8 +136,8 @@ for suite in "${SUITES[@]}"; do
     fi
   done
 
-  # EC2 and ECS share one ALB; only the Host header may differ.
-  if [[ -n "$alb_ec2" && -n "$alb_ecs" && "$alb_ec2" != "$alb_ecs" ]]; then
+  # On HTTP the targets must match: same ALB, only the Host header differs.
+  if [[ "$SCHEME" != "https" && -n "$alb_ec2" && -n "$alb_ecs" && "$alb_ec2" != "$alb_ecs" ]]; then
     fail "EC2 and ECS point at different ALBs ($alb_ec2 vs $alb_ecs) - only the Host header should differ"
   fi
   # Only meaningful once the placeholder has been replaced; an unfilled target
@@ -141,7 +145,9 @@ for suite in "${SUITES[@]}"; do
   # through the shared ALB, so the target is the ALB and not a Function URL.
   if [[ -n "$lam_url" && "$lam_url" != *REPLACE_ME* ]]; then
     if lambda_is_behind_alb; then
-      if [[ -n "$alb_ec2" && "$lam_url" != "$alb_ec2" ]]; then
+      if [[ "$lam_url" == *lambda-url* ]]; then
+        fail "lambda_behind_alb is on but test-lambda.yml points at a Function URL ($lam_url)"
+      elif [[ "$SCHEME" != "https" && -n "$alb_ec2" && "$lam_url" != "$alb_ec2" ]]; then
         fail "lambda_behind_alb is on but test-lambda.yml points at $lam_url, not the ALB ($alb_ec2)"
       fi
     elif [[ "$lam_url" != *lambda-url* ]]; then
@@ -149,30 +155,40 @@ for suite in "${SUITES[@]}"; do
     fi
   fi
 
-  # -- Host headers: the ALB routes by hostname, so EC2/ECS need distinct ones --
-  host_ec2="$(yaml_scalar "$adir/test-ec2.yml" Host)"
-  host_ecs="$(yaml_scalar "$adir/test-ecs.yml" Host)"
-  host_lambda="$(yaml_scalar "$adir/test-lambda.yml" Host)"
+  # -- Hostnames: the ALB routes on them, so platforms need distinct ones --
+  url_host() { local u="${1#*://}"; echo "${u%%/*}"; }
+
+  if [[ "$SCHEME" == "https" ]]; then
+    where="target"
+    host_ec2="$(url_host "$alb_ec2")"
+    host_ecs="$(url_host "$alb_ecs")"
+    host_lambda="$(url_host "$lam_url")"
+  else
+    where="Host header"
+    host_ec2="$(yaml_scalar "$adir/test-ec2.yml" Host)"
+    host_ecs="$(yaml_scalar "$adir/test-ecs.yml" Host)"
+    host_lambda="$(yaml_scalar "$adir/test-lambda.yml" Host)"
+  fi
 
   if [[ -z "$host_ec2" ]]; then
-    fail "test-ec2.yml has no Host header - ALB cannot route it"
+    fail "test-ec2.yml has no hostname in its $where - ALB cannot route it"
   elif [[ -z "$host_ecs" ]]; then
-    fail "test-ecs.yml has no Host header - ALB cannot route it"
+    fail "test-ecs.yml has no hostname in its $where - ALB cannot route it"
   elif [[ "$host_ec2" == "$host_ecs" ]]; then
-    fail "EC2 and ECS share Host '$host_ec2' - both loads would hit one platform"
+    fail "EC2 and ECS share hostname '$host_ec2' - both loads would hit one platform"
   else
-    ok "Host headers distinct ($host_ec2 / $host_ecs)"
+    ok "hostnames distinct ($host_ec2 / $host_ecs)"
   fi
 
   if lambda_is_behind_alb; then
     if [[ -z "$host_lambda" ]]; then
-      fail "lambda_behind_alb is on but test-lambda.yml has no Host header - ALB cannot route it"
+      fail "lambda_behind_alb is on but test-lambda.yml has no hostname in its $where - ALB cannot route it"
     elif [[ "$host_lambda" == "$host_ec2" || "$host_lambda" == "$host_ecs" ]]; then
-      fail "Lambda shares Host '$host_lambda' with another platform - loads would collide"
+      fail "Lambda shares hostname '$host_lambda' with another platform - loads would collide"
     else
-      ok "Lambda Host distinct ($host_lambda), routed through the shared ALB"
+      ok "Lambda hostname distinct ($host_lambda), routed through the shared ALB"
     fi
-  elif [[ -n "$host_lambda" ]]; then
+  elif [[ "$SCHEME" != "https" && -n "$host_lambda" ]]; then
     warn "test-lambda.yml sets a Host header but lambda_behind_alb is off - Lambda uses its Function URL"
   fi
 
@@ -253,18 +269,25 @@ for suite in "${SUITES[@]}"; do
     want_lambda="$(json_get_nested "lambda_urls.$TKEY" || true)"
     want_h_ec2="$(json_get_nested "hostnames.${TKEY}_ec2" || true)"
     want_h_ecs="$(json_get_nested "hostnames.${TKEY}_ecs" || true)"
+    want_h_lambda="$(json_get_nested "hostnames.${TKEY}_lambda" || true)"
 
-    if [[ -n "$alb_dns" && "$alb_ec2" != *"$alb_dns"* ]]; then
+    # Only HTTP targets the ALB DNS; HTTPS hostnames are checked just below.
+    if [[ "$SCHEME" != "https" && -n "$alb_dns" && "$alb_ec2" != *"$alb_dns"* ]]; then
       fail "test-ec2.yml target does not match terraform alb_dns ($alb_dns) - run: make sync-targets"
     fi
-    if [[ -n "$want_lambda" && "${lam_url%/}" != "${want_lambda%/}" ]]; then
+    # Behind the ALB the target is a hostname, not the Function URL.
+    if lambda_is_behind_alb; then
+      if [[ -n "$want_h_lambda" && "$host_lambda" != "$want_h_lambda" ]]; then
+        fail "test-lambda.yml hostname '$host_lambda' does not match terraform '$want_h_lambda'"
+      fi
+    elif [[ -n "$want_lambda" && "${lam_url%/}" != "${want_lambda%/}" ]]; then
       fail "test-lambda.yml target is stale vs terraform ($want_lambda) - run: make sync-targets"
     fi
     if [[ -n "$want_h_ec2" && "$host_ec2" != "$want_h_ec2" ]]; then
-      fail "test-ec2.yml Host '$host_ec2' does not match terraform '$want_h_ec2'"
+      fail "test-ec2.yml hostname '$host_ec2' does not match terraform '$want_h_ec2'"
     fi
     if [[ -n "$want_h_ecs" && "$host_ecs" != "$want_h_ecs" ]]; then
-      fail "test-ecs.yml Host '$host_ecs' does not match terraform '$want_h_ecs'"
+      fail "test-ecs.yml hostname '$host_ecs' does not match terraform '$want_h_ecs'"
     fi
     if [[ "$VALIDATE_FAILED" -eq "$tgt_before" ]]; then
       ok "matches benchmark-targets.json"

@@ -22,16 +22,21 @@ After `terraform apply` (with DNS and/or compute enabled):
 | `terraform output alb_dns_name` | ALB DNS (Host header or HTTP base if no domain) |
 | `terraform/generated/benchmark-targets.json` | Combined file when `write_benchmark_targets = true` |
 
-| Suite file | Typical target |
-|------------|----------------|
-| `test-ec2.yml` | With domain: `https://anilove-ec2.<domain>`. Without domain: `http://<alb_dns_name>` and set header `Host: anilove-ec2.bench.local` |
-| `test-ecs.yml` | Same pattern with `anilove-ecs.bench.local` (or your domain host) |
-| `test-lambda.yml` | With `lambda_behind_alb = true`: same pattern with `anilove-lambda.bench.local`. Otherwise the Function URL from output (includes `https://`) |
+| Suite file | With a domain (current) | Without a domain |
+|------------|-------------------------|------------------|
+| `test-ec2.yml` | `https://anilove-ec2.<domain>` | `http://<alb_dns_name>` + header `Host: anilove-ec2.bench.local` |
+| `test-ecs.yml` | `https://anilove-ecs.<domain>` | same, `Host: anilove-ecs.bench.local` |
+| `test-lambda.yml` | `https://anilove-lambda.<domain>` | same, `Host: anilove-lambda.bench.local`. With `lambda_behind_alb = false`, the Function URL instead (includes `https://`) |
 
-All three platforms go through the same ALB, so the target is identical and only
-the Host header differs. That is what keeps the request path common.
+All three platforms go through the same ALB and the same request path; only the
+hostname they are routed on differs. That is what keeps the comparison fair.
 
-Without Route 53, Terraform still creates ALB host rules for `*.bench.local` so target groups stay attached. Use the ALB DNS from `terraform output alb_dns_name` plus the Host header.
+With a domain the hostnames resolve and the wildcard certificate covers them, so
+the target carries the hostname and no `Host` header is needed, TLS is
+negotiated from the URL, so pointing at the ALB DNS name with a `Host` header
+would fail certificate validation.
+
+Without Route 53, Terraform still creates ALB host rules for `*.bench.local` so target groups stay attached. Those names resolve nowhere, so use the ALB DNS from `terraform output alb_dns_name` plus the `Host` header.
 
 Same pattern for CSV and Thumbnail, with labels `csv` and `thumb` instead of `anilove`.
 

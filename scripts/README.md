@@ -12,10 +12,10 @@ On Windows use **Git Bash** or **WSL**.
 | `validate-aws-state.sh` | Post-apply: target-group health, ECS counts, EC2 status checks, Lambda, RDS |
 | `validate-fairness.sh` | Only-compute-varies: shared metric names, 1-vCPU pins, deployed specs, live `/metrics` |
 | `push-ecr.sh` | Build and push app images to ECR |
-| `sync-artillery-targets.sh` | Fill Artillery YAML from `terraform/generated/benchmark-targets.json` |
-| `health-check.sh` | HTTP health for ALB hosts + Lambda URLs |
+| `sync-artillery-targets.sh` | Fill Artillery and Prometheus targets from `terraform/generated/benchmark-targets.json` |
+| `health-check.sh` | `/health` for ALB hosts + Lambda URLs |
 | `ecs-scale.sh` | Scale ECS services and ASG (`up` / `down` / `status`) |
-| `metrics-proxy.js` | Host proxy for Prometheus scrapes of EC2/ECS via ALB |
+| `metrics-proxy.js` | Host proxy for EC2/ECS scrapes on an HTTP-only ALB; exits when a domain is set |
 
 Shared Artillery runner: `benchmarks/scripts/run-parallel.sh`.
 
@@ -32,7 +32,7 @@ make ecs-up
 make validate-aws       # every target healthy, not just one
 make validate-fairness  # only the compute model varies
 make bench-anilove
-make metrics-proxy      # leave running
+make metrics-proxy      # HTTP-only stacks; no-op with a domain
 make validate-bench     # before the 30+ minute run
 make artillery-anilove
 make ecs-down           # or make destroy when done

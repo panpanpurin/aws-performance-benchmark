@@ -644,7 +644,7 @@ make ecs-up
 make validate-aws         # every target healthy, not just one
 make validate-fairness    # metric names, CPU pins, deployed specs
 make bench-anilove        # Prometheus + Grafana; also bench-csv, bench-thumbnail
-make metrics-proxy        # required for anilove, leave running
+                          # metrics-proxy not needed: the ALB hostnames resolve
 make validate-bench       # config check before a 30+ minute run
 make artillery-anilove    # EC2 + ECS + Lambda in parallel
 make loadgen-sync         # pull the reports down - destroy deletes the bucket
@@ -758,13 +758,14 @@ with empty Prometheus scrape targets for the csv and thumbnail suites.
   `Duration` instead. Its scrape interval is also 30 s against 5 s elsewhere,
   because the scrape competes with the workload for a concurrency slot. See
   [the section above](#lambdas-app_-series-is-per-container-so-experiment-b-reads-from-cloudwatch).
-- **The ALB terminates HTTP, not HTTPS.** No domain is registered, so no ACM
-  certificate is issued and the listener serves plain HTTP on port 80, with the
-  target groups selected by `Host` header against a `bench.local` suffix. TLS
-  cost is therefore absent from every measurement. Because
+- **The ALB terminates TLS.** `benchcomp.click` is registered and delegated to
+  Route 53, so ACM issues one wildcard certificate and the listener serves HTTPS
+  on 443, with port 80 redirecting to it. Target groups are selected by
+  hostname, one per app and platform, all covered by that certificate. Because
   `lambda_behind_alb = true` puts all three platforms behind the same listener,
-  it is absent *equally*, so the comparison is unaffected — but absolute
-  latencies are not what a TLS-terminating deployment would show.
+  the handshake cost is paid *equally* and sits outside the in-application
+  timer. It does appear in client-side latency, which is what a TLS-terminating
+  deployment would show.
 
 ## Where to look
 

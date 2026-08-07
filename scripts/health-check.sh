@@ -33,11 +33,18 @@ else
   TARGETS_NODE="$TARGETS_FILE"
 fi
 
-echo "=== ALB app /health (Host header) ==="
+SCHEME="$(discover_scheme)"
+
+# HTTPS resolves by name; HTTP needs the Host header to route.
+echo "=== ALB app /health ($SCHEME) ==="
 while IFS=$'\t' read -r key host; do
   [[ -n "$host" ]] || continue
-  alb="$(json_get alb_dns)"
-  check_http "$key" "http://${alb}/health" -H "Host: ${host}"
+  if [[ "$SCHEME" == "https" ]]; then
+    check_http "$key" "https://${host}/health"
+  else
+    alb="$(json_get alb_dns)"
+    check_http "$key" "http://${alb}/health" -H "Host: ${host}"
+  fi
 done < <(node -e "
 const t=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'));
 for (const [k,v] of Object.entries(t.hostnames||{}).sort()) console.log(k+'\t'+v);

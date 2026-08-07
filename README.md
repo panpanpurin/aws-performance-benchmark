@@ -56,7 +56,7 @@ make ecs-up
 make validate-aws                                   # every target healthy
 make validate-fairness                              # only the compute model varies
 make bench-anilove                                  # Prometheus + Grafana
-make metrics-proxy                                  # AniLove only, leave running
+make metrics-proxy                                  # HTTP-only stacks; no-op with a domain
 make validate-bench                                 # before a 30+ minute run
 make artillery-anilove                              # EC2 + ECS + Lambda in parallel
 make destroy                                        # or make ecs-down
@@ -64,8 +64,9 @@ make destroy                                        # or make ecs-down
 
 The repository ships Artillery `target` as `https://REPLACE_ME` and empty
 Prometheus scrape targets on purpose, so no live endpoint is published.
-`make sync-targets` fills the former from Terraform outputs; the latter are
-filled per [PROMETHEUS-TARGETS.md](./benchmarks/docs/PROMETHEUS-TARGETS.md).
+`make sync-targets` fills both from Terraform outputs; see
+[PROMETHEUS-TARGETS.md](./benchmarks/docs/PROMETHEUS-TARGETS.md) to fill them by
+hand.
 
 | Goal | Where |
 |------|--------|

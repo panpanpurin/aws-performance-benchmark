@@ -443,6 +443,7 @@ elif ! command -v curl >/dev/null 2>&1; then
   skip "curl not on PATH"
 else
   alb="$(discover_alb_dns)"
+  scheme="$(discover_scheme)"
   [[ -n "$alb" ]] || warn "ALB DNS not resolved - EC2/ECS scrape skipped"
 
   scrape_check() {
@@ -473,7 +474,13 @@ else
   for key in "${APP_KEYS[@]}"; do
     if [[ -n "$alb" ]]; then
       for platform in ec2 ecs; do
-        scrape_check "$key/$platform" "http://${alb}/metrics" -H "Host: $(discover_host "$key" "$platform")"
+        host="$(discover_host "$key" "$platform")"
+        # HTTPS resolves by name; HTTP needs the Host header to route.
+        if [[ "$scheme" == "https" ]]; then
+          scrape_check "$key/$platform" "https://${host}/metrics"
+        else
+          scrape_check "$key/$platform" "http://${alb}/metrics" -H "Host: $host"
+        fi
       done
     fi
     lurl="$(discover_lambda_url "$key")"

@@ -46,7 +46,12 @@ if [[ -n "$IMAGE" ]]; then
   # taken from the workload - and only here: ECS ignores the image HEALTHCHECK
   # because the task definition declares none, and Lambda has no equivalent. The
   # ALB target group is the health authority for every platform.
+  #
+  # --network host instead of -p: published ports add Docker DNAT that the ECS
+  # task does not pay, since awsvpc gives it its own ENI. One app per host, so
+  # the container gains nothing from its own network namespace.
   docker run -d --name "$APP" --restart unless-stopped --no-healthcheck \
+    --network host \
     --cpus="${container_cpus}" --memory="${container_memory_mb}m" \
-    -p "$PORT:$PORT" "$${ENV_ARGS[@]}" "$IMAGE"
+    "$${ENV_ARGS[@]}" "$IMAGE"
 fi

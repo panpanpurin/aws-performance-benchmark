@@ -1,5 +1,5 @@
 # AniLove scrape config.
-# App metrics: scrapes host metrics-proxy ports (node scripts/metrics-proxy.js).
+# App metrics: targets written by make sync-targets.
 # Artillery: pushgateways inside Docker.
 
 global:

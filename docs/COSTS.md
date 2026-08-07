@@ -57,7 +57,10 @@ Prices change. Re-run the commands rather than trusting this table.
 From `terraform/`, with the committed `terraform.tfvars`:
 
 - 1 VPC across 3 AZs, 3 public and 3 private subnets, **1** NAT gateway
-- 1 ALB, public, HTTP-only unless `domain_name` is set
+- 1 ALB, public, HTTPS on 443 with an ACM certificate (free) and 80 redirecting
+  to it; HTTP-only if `domain_name` is left empty
+- 1 Route 53 hosted zone, $0.50/month, billed whether or not the stack is up
+  since `make destroy` does not touch the zone or the domain registration
 - 3 EC2 app instances (`c6i.large`, one per app), private subnets, 20 GB gp3 each;
   each app container is capped at 1 vCPU / 1024 MB to match the ECS task
 - 1 ECS cluster on an ASG of `c6i.large`, 30 GB gp3 each

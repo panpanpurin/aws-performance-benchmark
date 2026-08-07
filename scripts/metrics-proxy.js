@@ -4,6 +4,8 @@
 // registered domain the hostnames are *.bench.local and resolve nowhere, so one
 // port per app+platform forwards to the ALB with the right Host.
 //
+// HTTP-only stacks. With domain_name set this exits immediately.
+//
 //   node scripts/metrics-proxy.js
 //   make metrics-proxy
 //
@@ -20,17 +22,25 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 
-function loadAlbFromTargets() {
+function loadTargets() {
   try {
     const p = path.join(__dirname, "..", "terraform", "generated", "benchmark-targets.json");
-    const j = JSON.parse(fs.readFileSync(p, "utf8"));
-    return j.alb_dns || null;
+    return JSON.parse(fs.readFileSync(p, "utf8"));
   } catch {
-    return null;
+    return {};
   }
 }
 
-const ALB = process.env.ALB_HOST || loadAlbFromTargets();
+const targets = loadTargets();
+
+// The hostnames resolve, so Prometheus scrapes the ALB directly.
+if (targets.scheme === "https") {
+  console.log("Domain configured: Prometheus scrapes the ALB directly.");
+  console.log("This proxy is only needed on an HTTP-only ALB. Nothing to do.");
+  process.exit(0);
+}
+
+const ALB = process.env.ALB_HOST || targets.alb_dns || null;
 
 if (!ALB) {
   console.error("No ALB hostname. Run terraform apply first, or set ALB_HOST.");

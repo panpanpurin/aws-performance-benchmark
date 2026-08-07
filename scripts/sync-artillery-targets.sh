@@ -51,6 +51,11 @@ function setTarget(text, url) {
   return text.replace(/^(\s*target:\s*)(["']).*\2/m, `$1"${url}"`);
 }
 
+// On HTTPS the target carries the hostname, so the header is redundant.
+function removeHost(text) {
+  return text.replace(/^\s*Host:\s*.*\r?\n/m, "");
+}
+
 function setHost(text, host) {
   if (/^\s*Host:\s*/m.test(text)) {
     return text.replace(/^(\s*Host:\s*).*$/m, `$1${host}`);
@@ -113,7 +118,11 @@ for (const [name, cfg] of Object.entries(apps)) {
     const fp = path.join(dir, fname);
     if (!fs.existsSync(fp)) continue;
     let text = fs.readFileSync(fp, "utf8");
-    if (meta.kind === "alb") {
+    if (meta.kind === "alb" && scheme === "https") {
+      text = setComment(text, "# ALB over HTTPS (synced from terraform outputs)");
+      text = setTarget(text, `https://${meta.host}`);
+      text = removeHost(text);
+    } else if (meta.kind === "alb") {
       text = setComment(text, "# ALB + Host header (synced from terraform outputs)");
       text = setTarget(text, albUrl);
       text = setHost(text, meta.host);
@@ -130,33 +139,59 @@ for (const [name, cfg] of Object.entries(apps)) {
   }
 }
 
-// Prometheus lambda scrape target, one per suite. Previously only anilove was
-// patched, leaving the csv and thumbnail suites without a Lambda scrape target.
-// The EC2/ECS jobs need no patching: they point at the metrics proxy on
-// localhost, which is what supplies the Host header the ALB routes on.
+// Prometheus scrape targets, one file per suite. EC2/ECS go straight at the
+// ALB hostnames on HTTPS, through the metrics proxy on HTTP.
 const promSuites = {
   anilove: "anilove",
   "csv-processor": "csv",
   "thumbnail-generator": "thumbnail",
 };
 
+// Proxy port per suite and platform, mirroring scripts/metrics-proxy.js.
+const proxyPorts = {
+  anilove: { ec2: 18080, ecs: 18081 },
+  csv: { ec2: 18082, ecs: 18083 },
+  thumbnail: { ec2: 18084, ecs: 18085 },
+};
+
+// Rewrites a job's targets and the scheme line under job_name. Matches empty
+// and filled lists, so first sync and re-sync both work.
+function setPromJob(text, job, target, https) {
+  const tgtRe = new RegExp(`(job_name: ${job}[\\s\\S]*?targets:\\s*)\\[[^\\]]*\\]`);
+  if (!tgtRe.test(text)) return null;
+  let out = text.replace(tgtRe, `$1["${target}"]`);
+  const schemeRe = new RegExp(`(job_name: ${job}\\r?\\n)(\\s*scheme:\\s*\\w+\\r?\\n)?`);
+  return out.replace(schemeRe, https ? `$1    scheme: https\n` : "$1");
+}
+
 for (const [dir, key] of Object.entries(promSuites)) {
   const prom = path.join(root, "benchmarks/suites", dir, "prometheus.yml");
-  const lamHost = stripSlash(lambdas[key] || "").replace(/^https?:\/\//, "");
   if (!fs.existsSync(prom)) continue;
-  if (!lamHost) {
-    console.log("WARN no Lambda URL for", key, "- leaving", dir, "prometheus.yml alone");
-    continue;
-  }
   let p = fs.readFileSync(prom, "utf8");
-  // Matches an empty list as well as one already filled, so the first sync and
-  // every re-sync both work.
-  const re = /(job_name: instrumented-metrics-lambda[\s\S]*?targets:\s*)\[[^\]]*\]/;
-  if (!re.test(p)) {
-    console.log("WARN could not locate instrumented-metrics-lambda targets in", dir);
-    continue;
+  const cfg = apps[dir];
+  const https = scheme === "https";
+
+  for (const platform of ["ec2", "ecs"]) {
+    const target = https
+      ? cfg[platform]
+      : `host.docker.internal:${proxyPorts[key][platform]}`;
+    const next = setPromJob(p, `instrumented-metrics-${platform}`, target, https);
+    if (next === null) {
+      console.log(`WARN could not locate instrumented-metrics-${platform} targets in`, dir);
+      continue;
+    }
+    p = next;
   }
-  p = p.replace(re, `$1["${lamHost}"]`);
+
+  const lamHost = stripSlash(lambdas[key] || "").replace(/^https?:\/\//, "");
+  if (lamHost) {
+    const re = /(job_name: instrumented-metrics-lambda[\s\S]*?targets:\s*)\[[^\]]*\]/;
+    if (re.test(p)) p = p.replace(re, `$1["${lamHost}"]`);
+    else console.log("WARN could not locate instrumented-metrics-lambda targets in", dir);
+  } else {
+    console.log("WARN no Lambda URL for", key, "- leaving its scrape target alone");
+  }
+
   fs.writeFileSync(prom, p);
   console.log("updated", path.relative(root, prom));
 }
@@ -167,5 +202,9 @@ console.log(
   "Lambda load path:",
   lambdaBehindAlb ? "ALB (same as EC2/ECS)" : "Function URL"
 );
-console.log("Done. Restart metrics-proxy if it was running.");
+if (scheme === "https") {
+  console.log("Done. Prometheus scrapes the ALB directly - metrics-proxy not needed.");
+} else {
+  console.log("Done. Restart metrics-proxy if it was running.");
+}
 NODE
