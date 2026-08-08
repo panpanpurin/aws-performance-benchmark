@@ -31,6 +31,8 @@ BASH := $(if $(GIT_BASH),$(GIT_BASH),bash)
 	push-images push-anilove push-csv push-thumbnail \
 	lock-deps \
 	metrics-proxy sync-targets health \
+	aggregate-anilove aggregate-csv aggregate-thumbnail \
+	figure-anilove figure-csv figure-thumbnail \
 	ecs-up ecs-down ecs-status
 
 help:
@@ -63,6 +65,10 @@ help:
 	@echo "  make loadgen-sync      stage current suites onto the generator"
 	@echo "  make loadgen-pilot-csv|anilove|thumbnail"
 	@echo "  make loadgen-csv|anilove|thumbnail"
+	@echo ""
+	@echo "Analysis"
+	@echo "  make aggregate-csv|anilove|thumbnail   median [Q1,Q3] across repetitions + per-run.csv"
+	@echo "  make figure-csv RUN=<run-id>           phase figure as .tex (pgfplots) + .svg"
 	@echo ""
 	@echo "Terraform"
 	@echo "  make init|plan|apply|destroy|output"
@@ -197,6 +203,24 @@ artillery-anilove:
 
 artillery-csv:
 	$(BASH) benchmarks/scripts/run-parallel.sh csv-processor
+
+figure-anilove:
+	node scripts/make-figures.js anilove $(RUN)
+
+figure-csv:
+	node scripts/make-figures.js csv-processor $(RUN)
+
+figure-thumbnail:
+	node scripts/make-figures.js thumbnail-generator $(RUN)
+
+aggregate-anilove:
+	node scripts/aggregate-runs.js anilove --csv benchmarks/suites/anilove/artillery/logs/per-run.csv
+
+aggregate-csv:
+	node scripts/aggregate-runs.js csv-processor --csv benchmarks/suites/csv-processor/artillery/logs/per-run.csv
+
+aggregate-thumbnail:
+	node scripts/aggregate-runs.js thumbnail-generator --csv benchmarks/suites/thumbnail-generator/artillery/logs/per-run.csv
 
 artillery-thumbnail:
 	$(BASH) benchmarks/scripts/run-parallel.sh thumbnail-generator

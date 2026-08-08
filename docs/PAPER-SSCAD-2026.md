@@ -101,19 +101,22 @@ Two consequences must be stated in the paper:
 
 ### Two experiments, not one
 
-Elasticity is held constant in Experiment A and then measured on its own in
-Experiment B. Both run against all three applications. They answer different
-questions, use different Lambda configurations, and — importantly — **read
-Lambda's numbers from different places**.
+Elasticity is held constant in Experiment A and then released in Experiment B,
+against the same arrival schedule. Both run against all three applications. They
+answer different questions, use different Lambda configurations, and —
+importantly — **read Lambda's numbers from different places**.
 
-| | **A — per-request cost** | **B — elasticity** |
+| | **A — per-request cost** | **B — effect of the cap** |
 |---|---|---|
-| Question | What does one request cost on each compute model? | What happens when the platform is free to scale? |
+| Question | What does one request cost on each compute model? | What does the concurrency limit itself cost? |
 | `lambda_reserved_concurrency` | `1` | `-1` |
 | Workers | 1 vCPU each, all three platforms | EC2/ECS 1 vCPU; Lambda scales to the account limit |
-| Load | Below every platform's ceiling | At and beyond the ceiling |
+| Load | Below every platform's ceiling | **The same schedule as A** |
 | Lambda metric source | Prometheus `app_*` | **CloudWatch** (see below) |
-| Reported | Latency mean/P95/P99, CPU per request, RAM | Throughput, concurrency reached, cold starts, error rate |
+| Reported | Latency mean/P95/P99, CPU per request, RAM | Concurrency reached, cold starts, error rate |
+
+B runs the *same* arrival schedule as A with the cap removed, so the difference
+between them is attributable to the concurrency limit alone.
 
 Switching between them is one line in `terraform.tfvars` plus `make apply`, so
 both are cheap to run in a session. `make validate-fairness` reports which mode
@@ -347,10 +350,10 @@ ceiling = 1000 / mean_ms   (using the slowest platform)
 steady  = 0.65 * ceiling   stress = 1.2-1.5 * ceiling
 ```
 
-Apply the same numbers to all three `test-*.yml` of that suite. That gives one
-regime for the latency comparison and one for the saturation comparison. If the
-pilot itself did not return ~100% 2xx, it was already saturating and its rate
-must come down before the reading is usable.
+Apply the same numbers to all three `test-*.yml` of that suite. Only the steady
+figure is used; every phase stays below the slowest platform's ceiling. If the
+pilot itself did not return ~100% 2xx, its rate must come down before the reading
+is usable.
 
 ### Smooth the arrivals: use arrivalCount, not arrivalRate
 
@@ -426,10 +429,10 @@ sat at 94% of their own ceiling and built 60-second queues, logging ~5000
 `ETIMEDOUT` apiece, while Lambda shed 69% of requests. That measures the
 queueing model, not the compute model.
 
-Experiment A therefore has **no stress phase**: warm-up, steady and soak, all
-below every ceiling. Saturation is Experiment B, run per platform at a multiple
-of its *own* ceiling and reported per platform rather than compared
-head-to-head.
+Every phase therefore stays below every ceiling: warm-up, steady and soak, and
+no stress phase. The strongest evidence the campaign carries for the no-queue
+model is the 20 req/s probe, where capped Lambda sheds 9.5% while EC2 and ECS
+stay at zero.
 
 ### Re-tune the latency buckets from the same pilot
 
@@ -698,8 +701,28 @@ difference between platforms.
 
 ### How many repetitions
 
-**Five per configuration; three is the defensible floor.** At ~US$ 7 per
-session that is about US$ 37 for the whole study.
+**Ten capped plus three uncapped, per workload — 13 runs each, 39 in total.**
+Revised upward from five on 2026-08-08.
+
+| Runs | Config | Schedule |
+|------|--------|----------|
+| 10 | capped, `reserved_concurrency = 1` | committed `test-*.yml` |
+| 3 | uncapped, `-1` | the same `test-*.yml` |
+
+Ten sessions carry all of it: sessions 1-7 run capped only, sessions 8-10 run
+capped, then flip the one tfvars line, `make apply` (Lambda only, ~5 min) and run
+again uncapped.
+
+Why ten. Ranking three platforms with Friedman on `n` blocks gives, at perfect
+separation, exactly `chi2 = 2n` and so `p = e^-n`. The minimum achievable p is
+fixed by the number of runs alone: n=2 cannot reach significance at all
+(p=0.135), n=3 only just does (0.0498), n=5 gives 0.0067, and n=10 gives
+0.000045 (enough margin to lose a run to a failed teardown and still be clear).
+
+**Never trade breadth for depth.** If the schedule slips, five repetitions on all
+three workloads beats ten on one and none on the others: the paper's claim is
+about three *bottleneck types*, and a study of one CPU-bound workload is a
+different, narrower paper.
 
 Run each repetition on **freshly provisioned instances** (`make destroy` then
 `make apply`), not back to back on the same stack. This also gives every
@@ -714,18 +737,41 @@ refuses to pass quietly while the bucket still holds objects. And a destroy that
 half-fails leaves instances billing while `terraform state list` looks clean, so
 confirm each teardown against AWS rather than against state.
 
-Aggregate as **median and min-max across runs, not mean and standard
-deviation**: latency distributions are right-skewed and normality cannot be
-demonstrated at n=5. Compute the per-run statistic first, then aggregate. The
-median across five runs of each run's P95 is a valid quantity; the mean of five
-P95 values is not, and captions should say which was used.
+Aggregate as **median and IQR across runs, not mean and standard deviation**:
+latency distributions are right-skewed and normality cannot be demonstrated at
+n=10. Compute the per-run statistic first, then aggregate. The median across ten
+runs of each run's P95 is a valid quantity; the mean of ten P95 values is not — a
+percentile is a quantile of a distribution and averaging quantiles from ten
+different distributions yields a quantile of nothing. Captions must say which was
+used. Prefer IQR over min-max at this n: min-max widens as n grows, so it is not
+comparable across cells with different run counts.
 
-Present it as: bars at the median with whiskers at min-max for the latency
-figures, one representative run for the phase time series (averaging across
-runs smears the phase boundaries), and median [min, max] per cell in the
-results table. If a statistical claim is needed, Kruskal-Wallis across the
-three platforms using per-run medians as observations is appropriate at this
-sample size.
+Present it as: bars at the median with IQR whiskers for the latency figures, one
+representative run for the phase time series (averaging across runs smears the
+phase boundaries), and median [Q1, Q3] per cell in the results table. Report
+error rate in the *same* table as latency, never separately.
+
+If a statistical claim is needed, the test is **Friedman**. The three platforms
+are loaded concurrently in one time window, so a run is a *block* and the three
+observations within it are paired rather than independent. Friedman is the
+matching test for that design, and it removes between-run variance instead of
+dumping it into the error term. Post-hoc: Nemenyi, or pairwise Wilcoxon
+signed-rank with Bonferroni. Report the **ratio of medians** as effect size —
+"Lambda is 3.1x EC2" is what a reader remembers; a p-value only says the
+difference is not noise.
+
+`make aggregate-csv|anilove|thumbnail` does all of this: per-run statistics over
+one phase window, then median [Q1, Q3] across runs split by capped/uncapped, plus
+the Friedman test and effect size. No Python or R required.
+
+**One limitation this analysis inherits.** Artillery's JSON keeps only a summary
+per 10 s period, not raw histogram buckets, so an exact percentile over a phase
+window cannot be reconstructed from the run reports. Mean, counts, min and max
+are exact; the p50/p95/p99 it reports are count-weighted means of the per-period
+percentiles. Either label them as such, or take tail latency from the Prometheus
+`app_*` histograms with `histogram_quantile` over the same window — which
+requires snapshotting the TSDB before `make bench-down-*`, since the container
+dies with the stack.
 
 The repository ships with Artillery targets set to `https://REPLACE_ME` and
 with empty Prometheus scrape targets for the csv and thumbnail suites.
@@ -748,6 +794,10 @@ with empty Prometheus scrape targets for the csv and thumbnail suites.
   capped at 1, because no 1-vCPU non-burstable type exists. Results therefore
   describe an application confined to one vCPU on an otherwise unloaded host,
   not a fully packed instance.
+- **Every phase sits below the slowest platform's service rate.** The uncapped
+  runs remove the concurrency limit but keep the same arrival schedule, so they
+  isolate the cost of the cap. Behaviour of an overloaded platform is outside the
+  measured scope.
 - **One region, and however many repetitions were performed.** All numbers come
   from ap-northeast-1. A single run per configuration supports no claim about
   variance.
