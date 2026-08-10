@@ -235,6 +235,10 @@ capture-thumbnail:
 figure-split-anilove:
 	node scripts/make-db-wait-figure.js anilove
 
+# Reads per-run.csv, so run the matching aggregate-* target first.
+figure-condition-anilove:
+	node scripts/make-condition-figure.js anilove
+
 artillery-thumbnail:
 	$(BASH) benchmarks/scripts/run-parallel.sh thumbnail-generator
 
