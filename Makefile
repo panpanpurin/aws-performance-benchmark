@@ -232,7 +232,7 @@ capture-csv:
 capture-thumbnail:
 	node scripts/capture-app-metrics.js thumbnail-generator $(RUN)
 
-figure-dbwait-anilove:
+figure-split-anilove:
 	node scripts/make-db-wait-figure.js anilove
 
 artillery-thumbnail:

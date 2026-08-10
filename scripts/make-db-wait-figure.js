@@ -1,18 +1,27 @@
-// Stacked decomposition of mean service time into compute and database wait.
+// End-to-end latency split into in-app compute, database wait and everything
+// outside the application.
 //
 //   node scripts/make-db-wait-figure.js anilove
-//   make figure-dbwait-anilove
+//   make figure-split-anilove
 //
-// Reads every app-metrics-<run-id>.json written by capture-app-metrics.js and
-// plots, per platform, the median across runs of mean compute time and mean
-// database wait. This is the AniLove-specific figure: csv-processor and
-// thumbnail-generator have no database, so the split does not exist for them.
+// Reads every app-metrics-<run-id>.json written by capture-app-metrics.js, pairs
+// it with the Artillery report for the same window, and plots the median across
+// runs of three components per platform:
 //
-// Means, not percentiles. Percentiles do not subtract, so the wait can only be
-// obtained as mean(total) - mean(internal). The bar height is therefore the sum
-// of two medians, which is not identical to the median total; the whisker gives
-// the IQR of the per-run total so the spread is still visible. Say so in the
-// caption.
+//   compute   in-app, excluding database time
+//   db wait   in-app total minus internal, so the time spent on Postgres
+//   overhead  client mean minus in-app total: TLS, the ALB, the network, and for
+//             Lambda the invocation path. EC2 and ECS carry the same network and
+//             ALB, so they are the control for that term.
+//
+// The point of the figure is that for an I/O-bound workload the compute model is
+// the smallest term. The database split is AniLove-specific; csv-processor and
+// thumbnail-generator have no database and would show two components.
+//
+// Means, not percentiles. Percentiles do not subtract, so neither the wait nor
+// the overhead can be formed from them. The bar is the sum of three medians,
+// which is not identical to the median total; the whisker gives the IQR of the
+// per-run client mean so the spread is still visible. Say so in the caption.
 //
 // Capped runs only by default. Under uncapped Lambda the app_* means are biased
 // toward the answering container's lifetime rather than the query window, so the
@@ -28,6 +37,34 @@ const LABEL = { ec2: "EC2", ecs: "ECS", lambda: "Lambda" };
 // by the hatch on the second segment.
 const C_COMPUTE = "#2a78d6";
 const C_WAIT = "#eb6834";
+const C_OVER = "#8a8f98";
+
+// End-to-end mean the client saw, over the same trimmed window. Artillery keeps
+// a summary per 10 s period, so the window mean is the count-weighted mean of
+// the period means: exact for a mean, unlike a percentile.
+function clientMean(runId, platform, phase) {
+  for (const f of [`loadgen-test-${platform}-${runId}.json`, `test-${platform}-${runId}.json`]) {
+    const full = path.join(logsDir, f);
+    if (!fs.existsSync(full)) continue;
+    const im = JSON.parse(fs.readFileSync(full, "utf8")).intermediate || [];
+    if (!im.length) return null;
+    const t0 = Number(im[0].period);
+    let w = 0;
+    let n = 0;
+    for (const per of im) {
+      const s = (Number(per.period) - t0) / 1000;
+      if (s < phase.start + TRIM_S || s + PERIOD_S > phase.end - TRIM_S) continue;
+      const sm = (per.summaries || {})["http.response_time"];
+      const c = (per.counters || {})["http.requests"] || 0;
+      if (sm && c) {
+        w += sm.mean * c;
+        n += c;
+      }
+    }
+    return n ? w / n : null;
+  }
+  return null;
+}
 
 function usage(msg) {
   if (msg) console.error("error: " + msg + "\n");
@@ -84,12 +121,23 @@ function committedPrimary() {
     ph.push({ duration: Number(m[1]), arrivals: c ? Number(c[1]) : 0 });
   }
   if (!ph.length) return null;
+  let elapsed = 0;
+  for (const p of ph) {
+    p.start = elapsed;
+    p.end = elapsed + p.duration;
+    elapsed = p.end;
+  }
   let bi = 0;
   ph.forEach((p, i) => {
     if (p.duration > ph[bi].duration) bi = i;
   });
-  return { index_1based: bi + 1, rate: ph[bi].arrivals / ph[bi].duration };
+  return { index_1based: bi + 1, rate: ph[bi].arrivals / ph[bi].duration, start: ph[bi].start, end: ph[bi].end };
 }
+
+// Must match capture-app-metrics.js, or the client window and the Prometheus
+// window would not describe the same requests.
+const PERIOD_S = 10;
+const TRIM_S = 10;
 
 const primary = committedPrimary();
 const runs = [];
@@ -121,6 +169,7 @@ const stats = {};
 for (const p of PLATFORMS) {
   const comp = [];
   const wait = [];
+  const over = [];
   const total = [];
   for (const r of runs) {
     const v = r.platforms[p];
@@ -131,13 +180,19 @@ for (const p of PLATFORMS) {
       dropped.push(`${r.run_id} ${p} ${(100 * v.scrape_coverage).toFixed(0)}%`);
       continue;
     }
+    // Everything the request spent outside the application: TLS, the ALB, the
+    // network, and for Lambda the invocation path. EC2 and ECS carry the same
+    // network and ALB, so they are the control for that term.
+    const cm = primary ? clientMean(r.run_id, p, primary) : null;
+    if (cm === null) continue;
     comp.push(v.internal_ms);
     wait.push(v.db_wait_ms);
-    total.push(v.total_ms);
+    over.push(Math.max(0, cm - v.total_ms));
+    total.push(cm);
   }
   if (!comp.length) continue;
   const [q1, q3] = quartiles(total);
-  stats[p] = { n: comp.length, compute: median(comp), wait: median(wait), total: median(total), q1, q3 };
+  stats[p] = { n: comp.length, compute: median(comp), wait: median(wait), over: median(over), total: median(total), q1, q3 };
 }
 const present = PLATFORMS.filter((p) => stats[p]);
 if (!present.length) {
@@ -151,8 +206,8 @@ const nMin = Math.min(...present.map((p) => stats[p].n));
 const nMax = Math.max(...present.map((p) => stats[p].n));
 const nRuns = nMax;
 const nLabel = nMin === nMax ? `n=${nMax}` : `n=${nMin}-${nMax}`;
-const top = Math.max(...present.map((p) => Math.max(stats[p].compute + stats[p].wait, stats[p].q3 || 0)));
-const yTop = Math.ceil((top * 1.18) / 0.5) * 0.5;
+const top = Math.max(...present.map((p) => Math.max(stats[p].compute + stats[p].wait + stats[p].over, stats[p].q3 || 0)));
+const yTop = Math.ceil((top * 1.18) / 5) * 5;
 
 // ---------------------------------------------------------------- SVG
 const W = 620;
@@ -174,7 +229,7 @@ svg.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" vie
 svg.push(`<defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">` +
   `<rect width="6" height="6" fill="${C_WAIT}"/><line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2" opacity="0.55"/></pattern></defs>`);
 svg.push(`<rect width="${W}" height="${H}" fill="#ffffff"/>`);
-svg.push(`<text x="${M.l}" y="20" font-size="13" font-weight="600" fill="#111">Mean service time split, ${esc(suite)} (${esc(condition)}, ${nLabel})</text>`);
+svg.push(`<text x="${M.l}" y="20" font-size="13" font-weight="600" fill="#111">End-to-end latency split, ${esc(suite)} (${esc(condition)}, ${nLabel})</text>`);
 
 for (const t of ticks) {
   svg.push(`<line x1="${M.l}" y1="${y(t).toFixed(1)}" x2="${M.l + PW}" y2="${y(t).toFixed(1)}" stroke="#e6e6e6" stroke-width="1"/>`);
@@ -188,16 +243,19 @@ present.forEach((p, i) => {
   const x = xc(i) - bw / 2;
   const hC = (s.compute / yTop) * PH;
   const hW = (s.wait / yTop) * PH;
+  const hO = (s.over / yTop) * PH;
+  const stack = s.compute + s.wait + s.over;
   svg.push(`<rect x="${x.toFixed(1)}" y="${y(s.compute).toFixed(1)}" width="${bw.toFixed(1)}" height="${hC.toFixed(1)}" fill="${C_COMPUTE}"/>`);
   svg.push(`<rect x="${x.toFixed(1)}" y="${y(s.compute + s.wait).toFixed(1)}" width="${bw.toFixed(1)}" height="${hW.toFixed(1)}" fill="url(#hatch)"/>`);
-  svg.push(`<rect x="${x.toFixed(1)}" y="${y(s.compute + s.wait).toFixed(1)}" width="${bw.toFixed(1)}" height="${(hC + hW).toFixed(1)}" fill="none" stroke="#33333322"/>`);
+  svg.push(`<rect x="${x.toFixed(1)}" y="${y(stack).toFixed(1)}" width="${bw.toFixed(1)}" height="${hO.toFixed(1)}" fill="${C_OVER}"/>`);
+  svg.push(`<rect x="${x.toFixed(1)}" y="${y(stack).toFixed(1)}" width="${bw.toFixed(1)}" height="${(hC + hW + hO).toFixed(1)}" fill="none" stroke="#33333322"/>`);
   if (s.q1 !== null && s.q3 !== null && s.q3 > s.q1) {
     const cx = xc(i);
     svg.push(`<line x1="${cx}" y1="${y(s.q1).toFixed(1)}" x2="${cx}" y2="${y(s.q3).toFixed(1)}" stroke="#222" stroke-width="1.4"/>`);
     for (const q of [s.q1, s.q3])
       svg.push(`<line x1="${cx - 9}" y1="${y(q).toFixed(1)}" x2="${cx + 9}" y2="${y(q).toFixed(1)}" stroke="#222" stroke-width="1.4"/>`);
   }
-  svg.push(`<text x="${xc(i)}" y="${(y(s.compute + s.wait) - 8).toFixed(1)}" font-size="11.5" font-weight="600" fill="#111" text-anchor="middle">${(s.compute + s.wait).toFixed(2)} ms</text>`);
+  svg.push(`<text x="${xc(i)}" y="${(y(s.compute + s.wait + s.over) - 8).toFixed(1)}" font-size="11.5" font-weight="600" fill="#111" text-anchor="middle">${(s.compute + s.wait + s.over).toFixed(2)} ms</text>`);
   svg.push(`<text x="${xc(i)}" y="${M.t + PH + 18}" font-size="12.5" fill="#111" text-anchor="middle">${LABEL[p]}</text>`);
 });
 
@@ -206,7 +264,9 @@ const lx = M.l;
 svg.push(`<rect x="${lx}" y="${ly - 9}" width="12" height="12" fill="${C_COMPUTE}"/>`);
 svg.push(`<text x="${lx + 18}" y="${ly + 1}" font-size="11.5" fill="#333">in-app compute</text>`);
 svg.push(`<rect x="${lx + 132}" y="${ly - 9}" width="12" height="12" fill="url(#hatch)" stroke="#33333322"/>`);
-svg.push(`<text x="${lx + 150}" y="${ly + 1}" font-size="11.5" fill="#333">database wait (total - internal)</text>`);
+svg.push(`<text x="${lx + 150}" y="${ly + 1}" font-size="11.5" fill="#333">database wait</text>`);
+svg.push(`<rect x="${lx + 246}" y="${ly - 9}" width="12" height="12" fill="${C_OVER}"/>`);
+svg.push(`<text x="${lx + 264}" y="${ly + 1}" font-size="11.5" fill="#333">invocation + network (client - in-app)</text>`);
 svg.push(`<text x="${M.l}" y="${H - 12}" font-size="10.5" fill="#666">medians across runs; whisker is the IQR of per-run mean total</text>`);
 svg.push("</svg>");
 
@@ -226,25 +286,26 @@ tex.push("      legend cell align=left,");
 tex.push("    ]");
 tex.push(`    \\addplot+[fill=blue!70!black, draw=none] coordinates {${present.map((p) => `(${LABEL[p]},${stats[p].compute.toFixed(4)})`).join(" ")}};`);
 tex.push(`    \\addplot+[fill=orange!80!black, draw=none, postaction={pattern=north east lines}] coordinates {${present.map((p) => `(${LABEL[p]},${stats[p].wait.toFixed(4)})`).join(" ")}};`);
-tex.push("    \\legend{in-app compute, database wait}");
+  tex.push(`    \addplot+[fill=black!35, draw=none] coordinates {${present.map((p) => `(${LABEL[p]},${stats[p].over.toFixed(4)})`).join(" ")}};`);
+tex.push("    \\legend{in-app compute, database wait, invocation + network}");
 tex.push("  \\end{axis}");
 tex.push("\\end{tikzpicture}");
 
 const outDir = path.join(suiteDir, "figures");
 fs.mkdirSync(outDir, { recursive: true });
-const svgPath = path.join(outDir, `${suite}-db-wait.svg`);
-const texPath = path.join(outDir, `${suite}-db-wait.tex`);
+const svgPath = path.join(outDir, `${suite}-latency-split.svg`);
+const texPath = path.join(outDir, `${suite}-latency-split.tex`);
 fs.writeFileSync(svgPath, svg.join("\n") + "\n");
 fs.writeFileSync(texPath, tex.join("\n") + "\n");
 
-console.log(`\n${suite} database-wait split  (${condition}, ${nLabel})\n`);
+console.log(`\n${suite} end-to-end latency split  (${condition}, ${nLabel})\n`);
 const pad = (s, n) => String(s).padEnd(n);
-console.log("  " + pad("platform", 10) + pad("compute", 12) + pad("db wait", 12) + pad("total", 12) + pad("IQR of total", 18) + "runs");
+console.log("  " + pad("platform", 10) + pad("compute", 11) + pad("db wait", 11) + pad("overhead", 11) + pad("total", 12) + pad("IQR of total", 18) + "runs");
 for (const p of present) {
   const s = stats[p];
   const iqr = s.q1 === null ? "-" : `[${s.q1.toFixed(2)}, ${s.q3.toFixed(2)}]`;
   console.log(
-    "  " + pad(p, 10) + pad(s.compute.toFixed(2) + " ms", 12) + pad(s.wait.toFixed(2) + " ms", 12) +
+    "  " + pad(p, 10) + pad(s.compute.toFixed(2) + " ms", 11) + pad(s.wait.toFixed(2) + " ms", 11) + pad(s.over.toFixed(2) + " ms", 11) +
       pad(s.total.toFixed(2) + " ms", 12) + pad(iqr, 18) + s.n
   );
 }
