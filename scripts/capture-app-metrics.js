@@ -159,11 +159,18 @@ function query(expr, atEpoch) {
   if (width <= PERIOD_S) usage("window is " + width + "s after trimming; lower --trim");
 
   const R = `[${width}s]`;
-  const [ts, tc, is, ic] = await Promise.all([
+  // Cold start is not a rate. It is recorded once per container, so the counter
+  // is read as an instant value: the total for the container that served the
+  // run, not the change across the window. The run window normally contains no
+  // cold start at all, because the health check and the 30 s Prometheus scrape
+  // reach the function minutes before load starts.
+  const [ts, tc, is, ic, cs, cc] = await Promise.all([
     query(`sum by (instance) (increase(app_total_execution_time_seconds_sum${R}))`, endS),
     query(`sum by (instance) (increase(app_total_execution_time_seconds_count${R}))`, endS),
     query(`sum by (instance) (increase(app_internal_processing_time_seconds_sum${R}))`, endS),
     query(`sum by (instance) (increase(app_internal_processing_time_seconds_count${R}))`, endS),
+    query(`sum by (instance) (app_cold_start_duration_seconds_sum)`, endS),
+    query(`sum by (instance) (app_cold_start_duration_seconds_count)`, endS),
   ]);
 
   const platforms = {};
@@ -174,11 +181,16 @@ function query(expr, atEpoch) {
     // series is absent and the split is not defined for them.
     const hasInternal = p in ic && ic[p] > 0;
     const internalMs = hasInternal ? (1000 * is[p]) / ic[p] : null;
+    // Absent on EC2 and ECS: recordColdStartOnce is a no-op without the Lambda
+    // environment variables, so the series only exists for lambda.
+    const hasCold = p in cc && cc[p] > 0;
     platforms[p] = {
       total_ms: +totalMs.toFixed(4),
       internal_ms: internalMs === null ? null : +internalMs.toFixed(4),
       db_wait_ms: internalMs === null ? null : +(totalMs - internalMs).toFixed(4),
       requests: Math.round(tc[p]),
+      cold_start_count: hasCold ? Math.round(cc[p]) : 0,
+      cold_start_mean_ms: hasCold ? +((1000 * cs[p]) / cc[p]).toFixed(2) : null,
     };
   }
 
@@ -208,12 +220,13 @@ function query(expr, atEpoch) {
 
   console.log(`\ncaptured ${suite} ${runId}  (${out.condition}, phase ${idx + 1}, ${width}s window)\n`);
   const pad = (s, n) => String(s).padEnd(n);
-  console.log("  " + pad("platform", 10) + pad("total", 11) + pad("compute", 11) + pad("db wait", 11) + "requests");
+  console.log("  " + pad("platform", 10) + pad("total", 11) + pad("compute", 11) + pad("db wait", 11) + pad("requests", 10) + "cold start");
   for (const p of PLATFORMS) {
     const v = platforms[p];
     if (!v) continue;
     const f = (x) => (x === null ? pad("-", 11) : pad(x.toFixed(2) + " ms", 11));
-    console.log("  " + pad(p, 10) + f(v.total_ms) + f(v.internal_ms) + f(v.db_wait_ms) + v.requests);
+    const cold = v.cold_start_count ? `${v.cold_start_count} x ${v.cold_start_mean_ms} ms` : "-";
+    console.log("  " + pad(p, 10) + f(v.total_ms) + f(v.internal_ms) + f(v.db_wait_ms) + pad(v.requests, 10) + cold);
   }
   console.log(`\nwrote ${dest}`);
 })().catch((e) => {
