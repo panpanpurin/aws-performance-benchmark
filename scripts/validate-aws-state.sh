@@ -131,7 +131,7 @@ else
       --filters "Name=tag:Project,Values=$PROJECT" "Name=tag:Platform,Values=ec2" \
       "Name=instance-state-name,Values=pending,running,stopping,stopped" \
       --query 'Reservations[].Instances[].[InstanceId,Tags[?Key==`App`]|[0].Value,State.Name]' \
-      --output text 2>/dev/null |
+      --output text 2>/dev/null | tr -d '\r' |
       while read -r iid app state; do
         [[ -n "$iid" ]] || continue
         st="$(aws ec2 describe-instance-status --region "$REGION" --instance-ids "$iid" \
@@ -177,7 +177,7 @@ else
     done < <(aws ecs describe-services --region "$REGION" --cluster "$cluster" \
       --services anilove csv-processor thumbnail-generator \
       --query 'services[].[serviceName,desiredCount,runningCount,pendingCount,deployments[0].rolloutState]' \
-      --output text 2>/dev/null || true)
+      --output text 2>/dev/null | tr -d '\r' || true)
   fi
 
   asg="${PROJECT}-ecs-asg"

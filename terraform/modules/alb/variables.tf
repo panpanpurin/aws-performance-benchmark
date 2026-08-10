@@ -20,8 +20,18 @@ variable "security_group_id" {
 
 variable "certificate_arn" {
   type        = string
-  description = "ACM certificate ARN. Empty skips HTTPS listener."
+  description = "ACM certificate ARN. Used as a value only; branch on enable_https."
   default     = ""
+}
+
+# count and for_each must resolve at plan time. On a fresh apply the certificate
+# does not exist yet, so certificate_arn is unknown and cannot decide whether a
+# resource exists. This flag comes from domain_name and route53_zone_id, which
+# are known from tfvars before anything is created.
+variable "enable_https" {
+  type        = bool
+  description = "Create the HTTPS listener and its rules instead of the HTTP ones."
+  default     = false
 }
 
 variable "ssl_policy" {

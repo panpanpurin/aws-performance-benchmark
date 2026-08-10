@@ -111,6 +111,7 @@ module "alb" {
   vpc_id            = module.network.vpc_id
   subnet_ids        = module.network.public_subnet_ids
   security_group_id = module.security_groups.alb_sg_id
+  enable_https      = local.enable_https
   certificate_arn   = local.enable_https ? module.acm[0].certificate_arn : ""
   ssl_policy        = var.alb_ssl_policy
   apps = {
@@ -178,6 +179,11 @@ module "ec2_apps" {
   jwt_secret_arn    = module.secrets.jwt_secret_arn
   aws_region        = var.aws_region
   tags              = local.tags
+
+  # user_data pulls from ECR over the NAT gateway. Subnets alone are not
+  # enough: they exist before the private route, and an instance booting in
+  # that window fails docker login.
+  depends_on = [module.network]
 }
 
 module "ecs_cluster" {
@@ -216,8 +222,9 @@ module "ecs_cluster" {
   aws_region            = var.aws_region
   tags                  = local.tags
 
-  # Listener rules must exist so ECS target groups are associated with the ALB
-  depends_on = [module.alb]
+  # Listener rules must exist so ECS target groups are associated with the ALB.
+  # Network for the NAT route, as in ec2_apps.
+  depends_on = [module.alb, module.network]
 }
 
 module "lambda_apps" {

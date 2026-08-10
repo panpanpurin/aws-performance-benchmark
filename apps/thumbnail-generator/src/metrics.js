@@ -17,9 +17,21 @@ register.setDefaultLabels({
   environment: process.env.NODE_ENV || 'production',
 });
 
+// Sized from pilot 20260808-183300, phase 2. histogram_quantile interpolates
+// linearly inside whichever bucket a quantile falls in, so a bucket wider than
+// the effect being measured yields a fabricated percentile, and the resolution
+// is lost at observation time - no PromQL recovers it afterwards.
+//
+// The previous edges put 411 of 414 EC2 requests, and all 397 Lambda requests,
+// inside a single bucket. Measured means were EC2 77 ms, ECS 80 ms, Lambda
+// 120 ms in-app, so 5 ms steps cover where EC2/ECS sit and 10 ms steps cover
+// Lambda and the tails. Internal processing time shares these edges and runs
+// lower, hence the retained coverage below 60 ms.
 const LATENCY_BUCKETS = [
-  0.005, 0.0075, 0.01, 0.0125, 0.015, 0.02, 0.025, 0.03, 0.04, 0.05,
-  0.07, 0.1, 0.15, 0.2, 0.3, 0.5, 0.75, 1, 2, 5,
+  0.01, 0.02, 0.03, 0.04, 0.05,
+  0.06, 0.065, 0.07, 0.075, 0.08, 0.085, 0.09, 0.095, 0.1,
+  0.11, 0.12, 0.13, 0.14, 0.15, 0.16, 0.17, 0.18, 0.19, 0.2,
+  0.25, 0.3, 0.4, 0.6, 1, 2,
 ];
 
 const totalExecutionTime = new client.Histogram({

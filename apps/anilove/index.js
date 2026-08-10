@@ -8,6 +8,8 @@ let proxy;
 
 exports.handler = async (event, context) => {
   recordColdStartOnce();
+  // Awaited here so the connection completes before the container freezes.
+  await app.ensureDatabase();
   if (!proxy) proxy = serverlessExpress({ app });
   return proxy(event, context);
 };

@@ -108,9 +108,9 @@ validate-teardown:
 health:
 	$(BASH) scripts/health-check.sh
 
+# Pilots are generated from test-*.yml and carry its target and Host header.
 sync-targets:
 	$(BASH) scripts/sync-artillery-targets.sh
-	@# Pilots are generated from test-*.yml and carry its target and Host header.
 	$(BASH) scripts/make-pilot-configs.sh
 
 local-up:

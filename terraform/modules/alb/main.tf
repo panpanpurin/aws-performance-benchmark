@@ -102,7 +102,7 @@ resource "aws_lb_listener" "http" {
   protocol          = "HTTP"
 
   dynamic "default_action" {
-    for_each = var.certificate_arn != "" ? [1] : []
+    for_each = var.enable_https ? [1] : []
     content {
       type = "redirect"
       redirect {
@@ -114,7 +114,7 @@ resource "aws_lb_listener" "http" {
   }
 
   dynamic "default_action" {
-    for_each = var.certificate_arn == "" ? [1] : []
+    for_each = !var.enable_https ? [1] : []
     content {
       type = "fixed-response"
       fixed_response {
@@ -184,7 +184,7 @@ resource "aws_lb_target_group_attachment" "lambda" {
 }
 
 resource "aws_lb_listener_rule" "http_ec2" {
-  for_each = var.certificate_arn == "" ? {
+  for_each = !var.enable_https ? {
     for k, a in var.apps : k => a if a.host_ec2 != ""
   } : {}
 
@@ -211,7 +211,7 @@ resource "aws_lb_listener_rule" "http_ec2" {
 }
 
 resource "aws_lb_listener_rule" "http_ecs" {
-  for_each = var.certificate_arn == "" ? {
+  for_each = !var.enable_https ? {
     for k, a in var.apps : k => a if a.host_ecs != ""
   } : {}
 
@@ -238,7 +238,7 @@ resource "aws_lb_listener_rule" "http_ecs" {
 }
 
 resource "aws_lb_listener_rule" "http_lambda" {
-  for_each = var.certificate_arn == "" ? {
+  for_each = !var.enable_https ? {
     for k, a in var.apps : k => a
     if a.host_lambda != "" && contains(keys(var.lambda_function_arns), k)
   } : {}
@@ -266,7 +266,7 @@ resource "aws_lb_listener_rule" "http_lambda" {
 }
 
 resource "aws_lb_listener" "https" {
-  count = var.certificate_arn != "" ? 1 : 0
+  count = var.enable_https ? 1 : 0
 
   load_balancer_arn = aws_lb.this.arn
   port              = 443
@@ -290,7 +290,7 @@ resource "aws_lb_listener" "https" {
 }
 
 resource "aws_lb_listener_rule" "https_ec2" {
-  for_each = var.certificate_arn != "" ? {
+  for_each = var.enable_https ? {
     for k, a in var.apps : k => a if a.host_ec2 != ""
   } : {}
 
@@ -317,7 +317,7 @@ resource "aws_lb_listener_rule" "https_ec2" {
 }
 
 resource "aws_lb_listener_rule" "https_ecs" {
-  for_each = var.certificate_arn != "" ? {
+  for_each = var.enable_https ? {
     for k, a in var.apps : k => a if a.host_ecs != ""
   } : {}
 
@@ -344,7 +344,7 @@ resource "aws_lb_listener_rule" "https_ecs" {
 }
 
 resource "aws_lb_listener_rule" "https_lambda" {
-  for_each = var.certificate_arn != "" ? {
+  for_each = var.enable_https ? {
     for k, a in var.apps : k => a
     if a.host_lambda != "" && contains(keys(var.lambda_function_arns), k)
   } : {}

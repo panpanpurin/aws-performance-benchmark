@@ -10,34 +10,40 @@ config:
   # Every platform serves with exactly one 1-vCPU worker.
   # ============================================================
   phases:
-  # Derived from a workstation measurement of this fixture, 2026-08-06: 77.6 ms
-  # mean in-app, n=719. The 1.354x csv-processor factor puts it near 57 ms on
-  # c6i, so EC2/ECS cap near 17 req/s and Lambda near 7, the lower of the
-  # multiplicative and additive models. Not a pilot: run make pilot-thumbnail
-  # and re-derive before publishing.
+  # Measured by pilot 20260808-183300, phase 2 only (the first 60 s absorbs cold
+  # starts and is discarded). Mean service time and the resulting one-worker
+  # ceiling:
+  #   EC2 77.1 ms -> 13.0 req/s   ECS 79.7 ms -> 12.5 req/s
+  #   Lambda 129.0 ms -> 7.8 req/s   <- binding
+  #   Lambda is read from CloudWatch Duration, not the in-app timer: a
+  #   concurrency slot is held for the whole invocation. The in-app 119.7 ms
+  #   understates the duration by 7.2% and would set every phase too high.
   #
   # arrivalCount, not arrivalRate: a rate starts every virtual user of a second
   # at the same instant. One request per arrival, so arrivals == requests.
 
-    # Warm-up at the primary rate. Discarded.
+    # Warm-up at the primary rate. Warming lower leaves a step change whose
+    # transient falls inside the reported window. Discarded.
     - duration: 180
-      arrivalCount: 540
+      arrivalCount: 900
 
-    # Probe, 1 req/s - 14% of Lambda's ceiling, 6% of EC2/ECS.
-    - duration: 360
-      arrivalCount: 360
+    # Probe, 1 req/s - 13% of Lambda ceiling, 8% of EC2/ECS.
+    - duration: 240
+      arrivalCount: 240
 
-    # Probe, 2 req/s - 29% / 12%.
-    - duration: 360
-      arrivalCount: 720
+    # Probe, 2.5 req/s - 32% / 19%.
+    - duration: 240
+      arrivalCount: 600
 
-    # Primary, 3 req/s - 43% / 18%. Source of every reported figure.
+    # Primary operating point, 5 req/s - 65% of Lambda ceiling, 39% of EC2/ECS.
+    # Source of every reported figure; 3600 requests.
     - duration: 720
-      arrivalCount: 2160
+      arrivalCount: 3600
 
-    # Probe, 5 req/s - 71% / 29%. Throttling here is a result, report it.
-    - duration: 360
-      arrivalCount: 1800
+    # Probe, 6.5 req/s - 84% / 50%. Loss here is a result, report it beside
+    # latency rather than on its own.
+    - duration: 240
+      arrivalCount: 1560
 
   defaults:
     headers:

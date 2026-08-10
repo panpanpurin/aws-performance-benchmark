@@ -46,6 +46,24 @@ async function initDatabase() {
   console.log(`database synced (schema=${dbSchema}, ssl=${useSsl})`);
 }
 
-initDatabase().catch((err) => console.error('database error:', err));
+// Lambda freezes the container on return, killing a connection opened at
+// module load. The handler awaits this; a failure clears it so the next
+// invocation retries.
+let dbReady = null;
+
+function ensureDatabase() {
+  if (!dbReady) {
+    dbReady = initDatabase().catch((err) => {
+      console.error('database error:', err);
+      dbReady = null;
+      throw err;
+    });
+  }
+  return dbReady;
+}
+
+// EC2 and ECS: start at boot, log failures, keep serving.
+ensureDatabase().catch(() => {});
 
 module.exports = app;
+module.exports.ensureDatabase = ensureDatabase;
