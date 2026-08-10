@@ -22,8 +22,12 @@ OUT="$OUTDIR/manifest-$RUN_ID.json"
 # which leaves git on Windows unable to resolve an MSYS path passed as -C.
 git_sha="$( (cd "$ROOT" && git rev-parse HEAD) 2>/dev/null || echo "")"
 git_branch="$( (cd "$ROOT" && git rev-parse --abbrev-ref HEAD) 2>/dev/null || echo "")"
+# The list, not just the flag: make sync-targets rewrites tracked files on every
+# run, so the tree is never clean and the flag alone cannot separate a generated
+# target from an uncommitted phase change.
+git_status="$( (cd "$ROOT" && git status --porcelain) 2>/dev/null || echo "")"
 git_dirty="false"
-[[ -n "$( (cd "$ROOT" && git status --porcelain) 2>/dev/null)" ]] && git_dirty="true"
+[[ -n "$git_status" ]] && git_dirty="true"
 
 # Digests come from the generated file rather than terraform.tfvars, which is
 # where push-ecr.sh writes them.
@@ -43,6 +47,7 @@ fi
 
 SUITE="$SUITE" RUN_ID="$RUN_ID" \
   GIT_SHA="$git_sha" GIT_BRANCH="$git_branch" GIT_DIRTY="$git_dirty" \
+  GIT_DIRTY_FILES="$git_status" \
   EC2_AMI="$(tfvar ec2_ami_id)" ECS_AMI="$(tfvar ecs_ami_id)" \
   D_ANILOVE="$(digest image_digest_anilove)" \
   D_CSV="$(digest image_digest_csv)" \
@@ -74,6 +79,11 @@ const manifest = {
     branch: orNull(e.GIT_BRANCH),
     // true means the working tree did not match the commit when the run started
     dirty: e.GIT_DIRTY === "true",
+    // Porcelain lines, so a reader can tell generated targets from real changes
+    dirty_files: (e.GIT_DIRTY_FILES || "")
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean),
   },
   amis: { ec2: orNull(e.EC2_AMI), ecs: orNull(e.ECS_AMI) },
   image_digests: {
@@ -111,7 +121,8 @@ echo "manifest: ${OUT#"$ROOT"/}"
 
 # Unpinned images or a dirty tree make a repetition hard to reproduce later.
 if [[ "$git_dirty" == "true" ]]; then
-  echo "  WARN working tree is dirty - this run is not tied to a commit" >&2
+  n_dirty="$(printf '%s\n' "$git_status" | grep -c . || true)"
+  echo "  WARN working tree is dirty ($n_dirty file(s)) - listed in git.dirty_files" >&2
 fi
 if [[ -z "$(digest image_digest_anilove)$(digest image_digest_csv)$(digest image_digest_thumbnail)" ]]; then
   echo "  WARN no image digests pinned - run make push-images" >&2
