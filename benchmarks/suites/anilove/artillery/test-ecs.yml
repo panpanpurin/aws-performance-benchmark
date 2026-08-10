@@ -1,35 +1,44 @@
 config:
   target: "https://REPLACE_ME"
-  # WARNING: rates unverified, never piloted. Unlike the other two suites the
-  # ceiling cannot be derived from them: about half of each request is database
-  # wait. Run make pilot-anilove and rewrite these.
-  # Shape and mechanics are correct; the numbers assume a conservative 20 ms per
-  # request, so 50 req/s for one worker, 10 arrivals/s. The local probe measured
-  # 3.0 ms against a container-local Postgres, so these err low.
   phases:
+  # Measured by pilot 20260810-054832, phase 2 only (the first 60 s is
+  # discarded). Service time and the resulting one-worker ceiling:
+  #   EC2 2.47 ms -> 405 req/s   ECS 2.46 ms -> 406 req/s
+  #   Lambda 6.19 ms -> 162 req/s   <- binding
+  #   Lambda is read from CloudWatch Duration, not the in-app timer: a
+  #   concurrency slot is held for the whole invocation. The in-app 3.92 ms
+  #   would overstate the ceiling as 255 req/s.
+  #
   # FIVE requests per arrival: arrivalCount is one fifth of the request rate.
   # arrivalCount, not arrivalRate: a rate starts every user of a second at once.
+  #
+  # Primary at 50% of Lambda's ceiling, as in csv-processor, so latency is not
+  # measured over survivors only. Each arrival fires five back-to-back
+  # invocations, so loss starts earlier here than in the single-request suites:
+  # the pilot returned 2 502s in 1800 requests at 12% occupancy.
 
     # Warm-up at the primary rate. Discarded.
     - duration: 180
-      arrivalCount: 900
+      arrivalCount: 2880
 
-    # Probe, 1.5 arrivals/s = 7.5 req/s, 15% of the assumed ceiling.
+    # Probe, 4.5 arrivals/s = 22.5 req/s, 14% of Lambda's ceiling, 6% of EC2/ECS.
     - duration: 360
-      arrivalCount: 540
+      arrivalCount: 1620
 
-    # Probe, 3 arrivals/s = 15 req/s, 30%.
+    # Probe, 9 arrivals/s = 45 req/s, 28% / 11%.
     - duration: 360
-      arrivalCount: 1080
+      arrivalCount: 3240
 
-    # Primary, 5 arrivals/s = 25 req/s, 50%. Source of every reported figure.
+    # Primary, 16 arrivals/s = 80 req/s, 50% / 20%. Source of every reported
+    # figure; 57600 requests.
     - duration: 720
-      arrivalCount: 3600
+      arrivalCount: 11520
 
-    # Probe, 7 arrivals/s = 35 req/s, 70%. A throttled Lambda behind the ALB
-    # returns 502, not 429; count 502s or read CloudWatch Throttles.
+    # Probe, 23 arrivals/s = 115 req/s, 71% / 28%. Closest approach to the knee.
+    # A throttled Lambda behind the ALB returns 502, not 429; count 502s or read
+    # CloudWatch Throttles. Loss here is a result, report it.
     - duration: 360
-      arrivalCount: 2520
+      arrivalCount: 8280
 
   defaults:
     headers:
