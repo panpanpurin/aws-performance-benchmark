@@ -148,6 +148,32 @@ function readInitDurations(endS) {
   }
 }
 
+// Requests the client sent inside the same window, per platform. The Prometheus
+// counters live in the container: when Lambda recycles an execution environment
+// mid-run the series resets, and increase() over a 30 s scrape interval loses
+// whatever fell between the last scrape and the reset. Comparing the two is the
+// only way to notice, because the means stay plausible while the sample shrinks.
+function readClientRequests(t0, phase) {
+  const PERIOD = PERIOD_S * 1000;
+  const out = {};
+  for (const p of PLATFORMS) {
+    for (const f of [`loadgen-test-${p}-${runId}.json`, `test-${p}-${runId}.json`, `loadgen-pilot-${p}-${runId}.json`]) {
+      const full = path.join(logsDir, f);
+      if (!fs.existsSync(full)) continue;
+      const im = JSON.parse(fs.readFileSync(full, "utf8")).intermediate || [];
+      let n = 0;
+      for (const per of im) {
+        const s = (Number(per.period) - t0) / 1000;
+        if (s < phase.start + trim || s + PERIOD / 1000 > phase.end - trim) continue;
+        n += (per.counters || {})["http.requests"] || 0;
+      }
+      out[p] = n;
+      break;
+    }
+  }
+  return out;
+}
+
 function readCondition() {
   const f = path.join(logsDir, `manifest-${runId}.json`);
   if (!fs.existsSync(f)) return "unknown";
@@ -236,6 +262,7 @@ function query(expr, atEpoch) {
     query(`sum by (instance) (app_cold_start_duration_seconds_count)`, endS),
   ]);
 
+  const clientReq = readClientRequests(t0, phase);
   const platforms = {};
   for (const p of PLATFORMS) {
     if (!(p in tc) || !tc[p]) continue;
@@ -247,7 +274,13 @@ function query(expr, atEpoch) {
     // Absent on EC2 and ECS: recordColdStartOnce is a no-op without the Lambda
     // environment variables, so the series only exists for lambda.
     const hasCold = p in cc && cc[p] > 0;
+    const client = clientReq[p];
+    const ratio = client ? tc[p] / client : null;
     platforms[p] = {
+      // Below ~0.9 the app_* figures for this platform cover only part of the
+      // window and should not be pooled with other runs.
+      scrape_coverage: ratio === null ? null : +ratio.toFixed(3),
+      client_requests: client === undefined ? null : client,
       total_ms: +totalMs.toFixed(4),
       internal_ms: internalMs === null ? null : +internalMs.toFixed(4),
       db_wait_ms: internalMs === null ? null : +(totalMs - internalMs).toFixed(4),
@@ -292,6 +325,13 @@ function query(expr, atEpoch) {
     const cold = v.cold_start_count ? `${v.cold_start_count} x ${v.cold_start_mean_ms} ms` : "-";
     console.log("  " + pad(p, 10) + f(v.total_ms) + f(v.internal_ms) + f(v.db_wait_ms) + pad(v.requests, 10) + cold);
   }
+  const bad = PLATFORMS.filter((p) => platforms[p] && platforms[p].scrape_coverage !== null && platforms[p].scrape_coverage < 0.9);
+  if (bad.length) {
+    console.log("\n  WARN incomplete scrape coverage: " + bad.map((p) => `${p} ${(100 * platforms[p].scrape_coverage).toFixed(0)}%`).join(", "));
+    console.log("       the app_* split for those platforms covers part of the window only.");
+    console.log("       Usual cause: Lambda recycled the execution environment mid-run.");
+  }
+
   const li = out.lambda_init;
   if (li.error) console.log(`\n  lambda init: unavailable (${li.error})`);
   else if (!li.count) console.log(`\n  lambda init: no cold start between ${li.window_start} and ${li.window_end}`);

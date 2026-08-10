@@ -81,6 +81,9 @@ if (!runs.length) {
   process.exit(1);
 }
 
+// A run-platform below this covers only part of its window and is excluded.
+const MIN_COVERAGE = Number(flag("min-coverage", 0.9));
+const dropped = [];
 const stats = {};
 for (const p of PLATFORMS) {
   const comp = [];
@@ -89,6 +92,12 @@ for (const p of PLATFORMS) {
   for (const r of runs) {
     const v = r.platforms[p];
     if (!v || v.internal_ms === null) continue;
+    // Partial windows are not comparable with whole ones. Written by
+    // capture-app-metrics.js; usually a Lambda environment recycled mid-run.
+    if (v.scrape_coverage !== null && v.scrape_coverage !== undefined && v.scrape_coverage < MIN_COVERAGE) {
+      dropped.push(`${r.run_id} ${p} ${(100 * v.scrape_coverage).toFixed(0)}%`);
+      continue;
+    }
     comp.push(v.internal_ms);
     wait.push(v.db_wait_ms);
     total.push(v.total_ms);
@@ -201,5 +210,6 @@ for (const p of present) {
       pad(s.total.toFixed(2) + " ms", 12) + iqr
   );
 }
+if (dropped.length) console.log(`\nexcluded for incomplete scrape coverage: ${dropped.join(", ")}`);
 if (nRuns < 3) console.log(`\nnote: n=${nRuns}. IQR is undefined below n=2 and unstable below n=4.`);
 console.log(`\nwrote ${svgPath}\n      ${texPath}`);
