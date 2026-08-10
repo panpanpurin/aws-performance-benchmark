@@ -285,10 +285,25 @@ function query(expr, atEpoch) {
   // run, not the change across the window. The run window normally contains no
   // cold start at all, because the health check and the 30 s Prometheus scrape
   // reach the function minutes before load starts.
-  const [cs, cc] = await Promise.all([
+  // CPU as a counter, never app_cpu_usage_percent. A percentage is CPU seconds
+  // per wall second, which is defined for a process that is always running but
+  // not for a sandbox that is frozen between invocations: wall time advances
+  // while CPU time does not, so the gauge is diluted toward zero on Lambda and
+  // would make it look cheaper as an artefact. The counter divided by requests
+  // over the same window is freeze-immune and concurrency-safe.
+  //
+  // RAM is a gauge and per-container memory is the intended reading, so usage is
+  // averaged and peak is maxed over the window rather than differenced.
+  const W = `[${width}s]`;
+  const [cs, cc, cpu0, cpu1, ramAvg, ramPeak] = await Promise.all([
     query(`sum by (instance) (app_cold_start_duration_seconds_sum)`, endS),
     query(`sum by (instance) (app_cold_start_duration_seconds_count)`, endS),
+    query(`sum by (instance) (last_over_time(app_cpu_seconds_total${LOOKBACK}))`, startS),
+    query(`sum by (instance) (last_over_time(app_cpu_seconds_total${LOOKBACK}))`, endS),
+    query(`avg by (instance) (avg_over_time(app_ram_usage_mb${W}))`, endS),
+    query(`max by (instance) (max_over_time(app_ram_peak_mb${W}))`, endS),
   ]);
+  const cpuDelta = delta(cpu0, cpu1);
 
   const clientReq = readClientRequests(t0, phase);
   const platforms = {};
@@ -315,6 +330,15 @@ function query(expr, atEpoch) {
       requests: Math.round(tc[p]),
       cold_start_count: hasCold ? Math.round(cc[p]) : 0,
       cold_start_mean_ms: hasCold ? +((1000 * cs[p]) / cc[p]).toFixed(2) : null,
+      // Denominator is the client's count, which is exact, rather than the
+      // scraped one, so a partial scrape does not inflate the per-request cost.
+      cpu_ms_per_request:
+        p in cpuDelta && Number.isFinite(cpuDelta[p]) && client
+          ? +((1000 * cpuDelta[p]) / client).toFixed(4)
+          : null,
+      cpu_seconds_window: p in cpuDelta && Number.isFinite(cpuDelta[p]) ? +cpuDelta[p].toFixed(3) : null,
+      ram_mean_mb: p in ramAvg ? +ramAvg[p].toFixed(1) : null,
+      ram_peak_mb: p in ramPeak ? +ramPeak[p].toFixed(1) : null,
     };
   }
 
@@ -345,13 +369,19 @@ function query(expr, atEpoch) {
 
   console.log(`\ncaptured ${suite} ${runId}  (${out.condition}, phase ${idx + 1}, ${width}s window)\n`);
   const pad = (s, n) => String(s).padEnd(n);
-  console.log("  " + pad("platform", 10) + pad("total", 11) + pad("compute", 11) + pad("db wait", 11) + pad("requests", 10) + "cold start");
+  console.log(
+    "  " + pad("platform", 10) + pad("total", 11) + pad("compute", 11) + pad("db wait", 11) +
+      pad("cpu/req", 11) + pad("ram mean", 10) + pad("ram peak", 10) + "requests"
+  );
   for (const p of PLATFORMS) {
     const v = platforms[p];
     if (!v) continue;
     const f = (x) => (x === null ? pad("-", 11) : pad(x.toFixed(2) + " ms", 11));
-    const cold = v.cold_start_count ? `${v.cold_start_count} x ${v.cold_start_mean_ms} ms` : "-";
-    console.log("  " + pad(p, 10) + f(v.total_ms) + f(v.internal_ms) + f(v.db_wait_ms) + pad(v.requests, 10) + cold);
+    const g = (x, u, n) => (x === null ? pad("-", n) : pad(x.toFixed(x < 10 ? 2 : 0) + " " + u, n));
+    console.log(
+      "  " + pad(p, 10) + f(v.total_ms) + f(v.internal_ms) + f(v.db_wait_ms) +
+        g(v.cpu_ms_per_request, "ms", 11) + g(v.ram_mean_mb, "MB", 10) + g(v.ram_peak_mb, "MB", 10) + v.requests
+    );
   }
   const bad = PLATFORMS.filter((p) => platforms[p] && platforms[p].scrape_coverage !== null && platforms[p].scrape_coverage < 0.9);
   if (bad.length) {
