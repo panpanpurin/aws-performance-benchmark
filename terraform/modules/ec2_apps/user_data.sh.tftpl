@@ -1,6 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
+# run_nonce: unused by the script. It changes this file so user_data changes,
+# and user_data_replace_on_change gives the repetition a fresh instance.
+# nonce=${run_nonce}
+
 # No dnf update: the ECS host does not patch at boot either, and an unpinned
 # package set would differ between repetitions.
 dnf install -y docker aws-cli jq

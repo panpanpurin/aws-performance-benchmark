@@ -354,3 +354,9 @@ variable "benchmark_az_index" {
     error_message = "benchmark_az_index must be zero or greater."
   }
 }
+
+variable "run_nonce" {
+  type        = string
+  description = "Opaque value mixed into the EC2 user_data, the ECS task definition and the Lambda environment. Changing it and applying replaces the instance, rolls a new task and forces new Lambda execution environments, so a repetition starts on fresh compute on all three platforms without destroying the stack. Cold start is recorded once per container, so its sample size is the number of repetitions that changed this."
+  default     = ""
+}

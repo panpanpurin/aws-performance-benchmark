@@ -226,6 +226,9 @@ resource "aws_ecs_task_definition" "app" {
           [
             { name = "PORT", value = tostring(each.value.port) },
             { name = "NODE_ENV", value = "production" },
+            # Unread by the app. A new value is a new task definition revision,
+            # so the service rolls a fresh task for the repetition.
+            { name = "RUN_NONCE", value = var.run_nonce },
           ],
           each.value.needs_rds ? [
             { name = "DB_SCHEMA", value = coalesce(try(each.value.db_schema_ecs, null), "ecs") },

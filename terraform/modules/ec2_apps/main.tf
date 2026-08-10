@@ -32,6 +32,7 @@ resource "aws_instance" "app" {
     db_schema           = "ec2"
     container_cpus      = var.container_cpus
     container_memory_mb = var.container_memory_mb
+    run_nonce           = var.run_nonce
   }))
 
   # Burstable families only. t2 defaults to standard and t3/t4g default to

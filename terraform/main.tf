@@ -178,6 +178,7 @@ module "ec2_apps" {
   db_secret_arn     = module.secrets.db_secret_arn
   jwt_secret_arn    = module.secrets.jwt_secret_arn
   aws_region        = var.aws_region
+  run_nonce         = var.run_nonce
   tags              = local.tags
 
   # user_data pulls from ECR over the NAT gateway. Subnets alone are not
@@ -220,6 +221,7 @@ module "ecs_cluster" {
   db_secret_arn         = module.secrets.db_secret_arn
   jwt_secret_arn        = module.secrets.jwt_secret_arn
   aws_region            = var.aws_region
+  run_nonce             = var.run_nonce
   tags                  = local.tags
 
   # Listener rules must exist so ECS target groups are associated with the ALB.
@@ -255,6 +257,7 @@ module "lambda_apps" {
   db_username               = var.rds_username
   db_password               = module.secrets.db_password
   jwt_secret                = module.secrets.jwt_secret
+  run_nonce                 = var.run_nonce
   tags                      = local.tags
 }
 

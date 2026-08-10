@@ -119,3 +119,9 @@ variable "cpu_credits" {
   description = "CPU credit mode for burstable instance types: standard or unlimited. Ignored on non-burstable types."
   default     = "standard"
 }
+
+variable "run_nonce" {
+  type        = string
+  description = "Opaque value that forces fresh compute when it changes. See the root variable."
+  default     = ""
+}

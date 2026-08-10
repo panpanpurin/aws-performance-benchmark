@@ -244,8 +244,11 @@ init:
 plan:
 	cd terraform && terraform plan
 
+# NONCE=<id> gives the next repetition fresh compute on all three platforms:
+# a new EC2 instance, a new ECS task and new Lambda execution environments, so
+# cold start has a sample. Omit it for an ordinary apply.
 apply:
-	cd terraform && terraform apply
+	cd terraform && terraform apply $(if $(NONCE),-var run_nonce=$(NONCE),)
 
 destroy:
 	cd terraform && terraform destroy -auto-approve

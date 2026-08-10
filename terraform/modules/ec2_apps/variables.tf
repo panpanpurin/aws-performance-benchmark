@@ -90,3 +90,9 @@ variable "tags" {
   description = "Extra tags."
   default     = {}
 }
+
+variable "run_nonce" {
+  type        = string
+  description = "Opaque value that forces fresh compute when it changes. See the root variable."
+  default     = ""
+}

@@ -30,6 +30,9 @@ resource "aws_lambda_function" "app" {
       {
         NODE_ENV = "production"
         PORT     = tostring(each.value.port)
+        # Unread by the app. Changing it replaces the execution environments, so
+        # the repetition contributes cold starts instead of reusing warm ones.
+        RUN_NONCE = var.run_nonce
       },
       each.value.needs_rds ? {
         DB_HOST     = var.db_host

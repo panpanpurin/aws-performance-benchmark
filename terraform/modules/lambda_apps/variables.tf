@@ -98,3 +98,9 @@ variable "reserved_concurrency" {
   description = "Max concurrent executions per function. 1 matches the single worker EC2 and ECS each get; -1 removes the cap."
   default     = 1
 }
+
+variable "run_nonce" {
+  type        = string
+  description = "Opaque value that forces fresh compute when it changes. See the root variable."
+  default     = ""
+}
