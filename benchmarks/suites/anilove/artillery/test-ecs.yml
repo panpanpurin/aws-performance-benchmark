@@ -27,27 +27,27 @@ config:
   # arrivalCount, not arrivalRate: a rate starts every user of a second at once.
 
     # Warm-up at the primary rate. Discarded.
-    - duration: 180
-      arrivalCount: 720
+    - duration: 120
+      arrivalCount: 480
 
     # Probe, 1.5 arrivals/s = 7.5 req/s, 19% of Lambda's ceiling, 2% of EC2/ECS.
-    - duration: 360
-      arrivalCount: 540
+    - duration: 150
+      arrivalCount: 225
 
     # Probe, 2.5 arrivals/s = 12.5 req/s, 32% / 3%.
-    - duration: 360
-      arrivalCount: 900
+    - duration: 150
+      arrivalCount: 375
 
     # Primary, 4 arrivals/s = 20 req/s, 51% / 5%. Source of every reported
-    # figure; 14400 requests.
-    - duration: 720
-      arrivalCount: 2880
+    # figure; 9600 requests.
+    - duration: 480
+      arrivalCount: 1920
 
     # Probe, 5.6 arrivals/s = 28 req/s, 71% / 7%. Closest approach to the knee.
     # A throttled Lambda behind the ALB returns 502, not 429; count 502s or read
     # CloudWatch Throttles. Loss here is a result, report it.
-    - duration: 360
-      arrivalCount: 2016
+    - duration: 150
+      arrivalCount: 840
 
   defaults:
     headers:
