@@ -1,44 +1,53 @@
 config:
   target: "https://REPLACE_ME"
   phases:
-  # Measured by pilot 20260810-054832, phase 2 only (the first 60 s is
-  # discarded). Service time and the resulting one-worker ceiling:
-  #   EC2 2.47 ms -> 405 req/s   ECS 2.46 ms -> 406 req/s
-  #   Lambda 6.19 ms -> 162 req/s   <- binding
-  #   Lambda is read from CloudWatch Duration, not the in-app timer: a
-  #   concurrency slot is held for the whole invocation. The in-app 3.92 ms
-  #   would overstate the ceiling as 255 req/s.
+  # Pilot 20260810-054832 for service time, calibration run 20260810-070037 for
+  # the loss curve. Service time per request, pilot phase 2:
+  #   EC2 2.47 ms   ECS 2.46 ms   Lambda 3.92 ms in-app / 6.19 ms CloudWatch
+  #
+  # The Lambda ceiling is NOT 1000/6.19. One arrival is a five-step sequential
+  # flow, so what saturates the single concurrency slot is how many virtual users
+  # hold an invocation at once, not invocation throughput. Flow time is
+  # 5 x 25.2 ms client-side = 126 ms, so one worker absorbs 7.9 arrivals/s:
+  #   Lambda 40 req/s   <- binding
+  #   EC2 405 req/s, ECS 406 req/s, which are throughput-bound, not flow-bound
+  #
+  # Loss measured on 20260810-070037. EC2 and ECS were 0% at every rate:
+  #   22.5 req/s 1.6%   45 req/s 6.1%   80 req/s 26.4%   115 req/s 40.2%
+  # That run set the primary at 80 req/s, from the Duration ceiling of 162 req/s
+  # that this suite does not obey. It lost a quarter of the requests and pulled
+  # Lambda's mean *down* to 3.60 ms, below the uncontended 3.92 ms, because only
+  # survivors are timed. Do not raise these rates without re-measuring loss.
+  #
+  # At the primary EC2 and ECS sit near 5% of their own ceiling. One rate cannot
+  # saturate three platforms; that asymmetry is what reserved concurrency 1 costs
+  # and is the subject of Experiment B.
   #
   # FIVE requests per arrival: arrivalCount is one fifth of the request rate.
   # arrivalCount, not arrivalRate: a rate starts every user of a second at once.
-  #
-  # Primary at 50% of Lambda's ceiling, as in csv-processor, so latency is not
-  # measured over survivors only. Each arrival fires five back-to-back
-  # invocations, so loss starts earlier here than in the single-request suites:
-  # the pilot returned 2 502s in 1800 requests at 12% occupancy.
 
     # Warm-up at the primary rate. Discarded.
     - duration: 180
+      arrivalCount: 720
+
+    # Probe, 1.5 arrivals/s = 7.5 req/s, 19% of Lambda's ceiling, 2% of EC2/ECS.
+    - duration: 360
+      arrivalCount: 540
+
+    # Probe, 2.5 arrivals/s = 12.5 req/s, 32% / 3%.
+    - duration: 360
+      arrivalCount: 900
+
+    # Primary, 4 arrivals/s = 20 req/s, 51% / 5%. Source of every reported
+    # figure; 14400 requests.
+    - duration: 720
       arrivalCount: 2880
 
-    # Probe, 4.5 arrivals/s = 22.5 req/s, 14% of Lambda's ceiling, 6% of EC2/ECS.
-    - duration: 360
-      arrivalCount: 1620
-
-    # Probe, 9 arrivals/s = 45 req/s, 28% / 11%.
-    - duration: 360
-      arrivalCount: 3240
-
-    # Primary, 16 arrivals/s = 80 req/s, 50% / 20%. Source of every reported
-    # figure; 57600 requests.
-    - duration: 720
-      arrivalCount: 11520
-
-    # Probe, 23 arrivals/s = 115 req/s, 71% / 28%. Closest approach to the knee.
+    # Probe, 5.6 arrivals/s = 28 req/s, 71% / 7%. Closest approach to the knee.
     # A throttled Lambda behind the ALB returns 502, not 429; count 502s or read
     # CloudWatch Throttles. Loss here is a result, report it.
     - duration: 360
-      arrivalCount: 8280
+      arrivalCount: 2016
 
   defaults:
     headers:
