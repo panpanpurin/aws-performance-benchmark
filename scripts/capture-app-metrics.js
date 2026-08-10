@@ -13,6 +13,7 @@
 // (internal) is not the 95th-percentile database wait. Only means are additive.
 // See docs/PAPER-SSCAD-2026.md "Reading the results correctly".
 
+const { execFileSync } = require("child_process");
 const fs = require("fs");
 const http = require("http");
 const path = require("path");
@@ -83,6 +84,68 @@ function readAnchor() {
     }
   }
   return null;
+}
+
+// Init Duration from the log group, not app_cold_start_duration_seconds. The
+// in-app clock starts when metrics.js is required, so it misses the runtime
+// bootstrap and every require before it and reads ~7x low. Init Duration is the
+// whole init phase and is what AWS bills.
+//
+// The window runs from the end of the previous captured run to the end of this
+// one, because the container is created by the apply and warmed by the health
+// check minutes before load starts. One apply per repetition therefore yields
+// one sample; an extra apply in the interval yields more, which is correct.
+function readInitDurations(endS) {
+  const fn = flag("function", "aws-perf-bench-" + suite);
+  const prior = fs
+    .readdirSync(logsDir)
+    .filter((f) => /^app-metrics-(\d{8}-\d{6})\.json$/.test(f))
+    .map((f) => /^app-metrics-(\d{8}-\d{6})\.json$/.exec(f)[1])
+    .filter((s) => s < runId)
+    .sort();
+  let startMs = (endS - Number(flag("cold-lookback", 3600))) * 1000;
+  if (prior.length) {
+    try {
+      const p = JSON.parse(fs.readFileSync(path.join(logsDir, `app-metrics-${prior[prior.length - 1]}.json`), "utf8"));
+      startMs = Date.parse(p.phase.window_end);
+    } catch {}
+  }
+  try {
+    const out = execFileSync(
+      "aws",
+      [
+        "logs", "filter-log-events",
+        "--region", flag("region", "ap-northeast-1"),
+        "--log-group-name", "/aws/lambda/" + fn,
+        "--start-time", String(Math.round(startMs)),
+        "--end-time", String(endS * 1000),
+        "--filter-pattern", '"Init Duration"',
+        "--query", "events[].message",
+        "--output", "text",
+      ],
+      // No shell: the AWS CLI is aws.exe on Windows, and shell:true would both
+      // warn and leave the arguments unescaped.
+      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], maxBuffer: 8 << 20 }
+    );
+    const ms = [];
+    for (const line of out.split("\n")) {
+      const m = /Init Duration:\s*([0-9.]+)\s*ms/.exec(line);
+      if (m) ms.push(Number(m[1]));
+    }
+    ms.sort((a, b) => a - b);
+    return {
+      source: "cloudwatch_logs_init_duration",
+      function_name: fn,
+      window_start: new Date(startMs).toISOString(),
+      window_end: new Date(endS * 1000).toISOString(),
+      count: ms.length,
+      mean_ms: ms.length ? +(ms.reduce((a, b) => a + b, 0) / ms.length).toFixed(2) : null,
+      max_ms: ms.length ? ms[ms.length - 1] : null,
+      samples_ms: ms,
+    };
+  } catch (e) {
+    return { source: "cloudwatch_logs_init_duration", function_name: fn, error: String(e.message || e).slice(0, 160), count: 0 };
+  }
 }
 
 function readCondition() {
@@ -213,6 +276,7 @@ function query(expr, atEpoch) {
       trim_s: trim,
     },
     platforms,
+    lambda_init: readInitDurations(endS),
   };
 
   const dest = path.join(logsDir, `app-metrics-${runId}.json`);
@@ -228,6 +292,11 @@ function query(expr, atEpoch) {
     const cold = v.cold_start_count ? `${v.cold_start_count} x ${v.cold_start_mean_ms} ms` : "-";
     console.log("  " + pad(p, 10) + f(v.total_ms) + f(v.internal_ms) + f(v.db_wait_ms) + pad(v.requests, 10) + cold);
   }
+  const li = out.lambda_init;
+  if (li.error) console.log(`\n  lambda init: unavailable (${li.error})`);
+  else if (!li.count) console.log(`\n  lambda init: no cold start between ${li.window_start} and ${li.window_end}`);
+  else console.log(`\n  lambda init: ${li.count} cold start(s), mean ${li.mean_ms} ms, max ${li.max_ms} ms  [${li.samples_ms.join(", ")}]`);
+
   console.log(`\nwrote ${dest}`);
 })().catch((e) => {
   console.error(String(e.message || e));
