@@ -70,12 +70,45 @@ if (!files.length) {
   process.exit(1);
 }
 
+// The committed primary phase. A capture taken on a different phase, or at a
+// rate the schedule no longer uses, is a pilot or a superseded calibration run
+// and is not a repetition. Same 10% rule as aggregate-runs.js.
+function committedPrimary() {
+  const text = fs.readFileSync(path.join(suiteDir, "artillery", "test-ec2.yml"), "utf8");
+  const ph = [];
+  const re = /^\s*-\s*duration:\s*(\d+)\s*$/gm;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const rest = text.slice(m.index + m[0].length, m.index + m[0].length + 200);
+    const c = /arrivalCount:\s*(\d+)/.exec(rest);
+    ph.push({ duration: Number(m[1]), arrivals: c ? Number(c[1]) : 0 });
+  }
+  if (!ph.length) return null;
+  let bi = 0;
+  ph.forEach((p, i) => {
+    if (p.duration > ph[bi].duration) bi = i;
+  });
+  return { index_1based: bi + 1, rate: ph[bi].arrivals / ph[bi].duration };
+}
+
+const primary = committedPrimary();
 const runs = [];
+const offSchedule = [];
 for (const f of files) {
   const j = JSON.parse(fs.readFileSync(path.join(logsDir, f), "utf8"));
   if (condition !== "all" && j.condition !== condition) continue;
+  if (primary && j.phase) {
+    const wrongPhase = j.phase.index_1based !== primary.index_1based;
+    const r = j.phase.arrivals_per_s;
+    const wrongRate = r === null || r === undefined || Math.abs(r - primary.rate) / primary.rate > 0.1;
+    if (wrongPhase || wrongRate) {
+      offSchedule.push(`${j.run_id} (phase ${j.phase.index_1based}, ${r} arr/s)`);
+      continue;
+    }
+  }
   runs.push(j);
 }
+if (offSchedule.length) console.log(`\nnot repetitions, excluded: ${offSchedule.join(", ")}`);
 if (!runs.length) {
   console.error(`no ${condition} runs among ${files.length} capture(s). Try --condition all.`);
   process.exit(1);
@@ -112,7 +145,12 @@ if (!present.length) {
   process.exit(1);
 }
 
-const nRuns = Math.max(...present.map((p) => stats[p].n));
+// Platforms can differ when one is dropped for coverage, so the label is a
+// range rather than a single n that would overstate the thinner cell.
+const nMin = Math.min(...present.map((p) => stats[p].n));
+const nMax = Math.max(...present.map((p) => stats[p].n));
+const nRuns = nMax;
+const nLabel = nMin === nMax ? `n=${nMax}` : `n=${nMin}-${nMax}`;
 const top = Math.max(...present.map((p) => Math.max(stats[p].compute + stats[p].wait, stats[p].q3 || 0)));
 const yTop = Math.ceil((top * 1.18) / 0.5) * 0.5;
 
@@ -136,7 +174,7 @@ svg.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" vie
 svg.push(`<defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">` +
   `<rect width="6" height="6" fill="${C_WAIT}"/><line x1="0" y1="0" x2="0" y2="6" stroke="#ffffff" stroke-width="2" opacity="0.55"/></pattern></defs>`);
 svg.push(`<rect width="${W}" height="${H}" fill="#ffffff"/>`);
-svg.push(`<text x="${M.l}" y="20" font-size="13" font-weight="600" fill="#111">Mean service time split, ${esc(suite)} (${esc(condition)}, n=${nRuns})</text>`);
+svg.push(`<text x="${M.l}" y="20" font-size="13" font-weight="600" fill="#111">Mean service time split, ${esc(suite)} (${esc(condition)}, ${nLabel})</text>`);
 
 for (const t of ticks) {
   svg.push(`<line x1="${M.l}" y1="${y(t).toFixed(1)}" x2="${M.l + PW}" y2="${y(t).toFixed(1)}" stroke="#e6e6e6" stroke-width="1"/>`);
@@ -199,15 +237,15 @@ const texPath = path.join(outDir, `${suite}-db-wait.tex`);
 fs.writeFileSync(svgPath, svg.join("\n") + "\n");
 fs.writeFileSync(texPath, tex.join("\n") + "\n");
 
-console.log(`\n${suite} database-wait split  (${condition}, n=${nRuns})\n`);
+console.log(`\n${suite} database-wait split  (${condition}, ${nLabel})\n`);
 const pad = (s, n) => String(s).padEnd(n);
-console.log("  " + pad("platform", 10) + pad("compute", 12) + pad("db wait", 12) + pad("total", 12) + "IQR of total");
+console.log("  " + pad("platform", 10) + pad("compute", 12) + pad("db wait", 12) + pad("total", 12) + pad("IQR of total", 18) + "runs");
 for (const p of present) {
   const s = stats[p];
   const iqr = s.q1 === null ? "-" : `[${s.q1.toFixed(2)}, ${s.q3.toFixed(2)}]`;
   console.log(
     "  " + pad(p, 10) + pad(s.compute.toFixed(2) + " ms", 12) + pad(s.wait.toFixed(2) + " ms", 12) +
-      pad(s.total.toFixed(2) + " ms", 12) + iqr
+      pad(s.total.toFixed(2) + " ms", 12) + pad(iqr, 18) + s.n
   );
 }
 if (dropped.length) console.log(`\nexcluded for incomplete scrape coverage: ${dropped.join(", ")}`);
