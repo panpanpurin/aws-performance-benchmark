@@ -222,6 +222,19 @@ aggregate-csv:
 aggregate-thumbnail:
 	node scripts/aggregate-runs.js thumbnail-generator --csv benchmarks/suites/thumbnail-generator/artillery/logs/per-run.csv
 
+# Prometheus dies with the suite stack, so capture before bench-down-* or destroy.
+capture-anilove:
+	node scripts/capture-app-metrics.js anilove $(RUN)
+
+capture-csv:
+	node scripts/capture-app-metrics.js csv-processor $(RUN)
+
+capture-thumbnail:
+	node scripts/capture-app-metrics.js thumbnail-generator $(RUN)
+
+figure-dbwait-anilove:
+	node scripts/make-db-wait-figure.js anilove
+
 artillery-thumbnail:
 	$(BASH) benchmarks/scripts/run-parallel.sh thumbnail-generator
 
