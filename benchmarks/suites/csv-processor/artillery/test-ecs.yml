@@ -28,26 +28,26 @@ config:
 
     # Warm-up at the primary rate. Warming lower leaves a step change whose
     # transient falls inside the reported window. Discarded.
-    - duration: 180
-      arrivalCount: 2520
+    - duration: 120
+      arrivalCount: 1680
 
     # Probe, 4 req/s - 14% of Lambda's ceiling, 6% of EC2/ECS.
-    - duration: 240
-      arrivalCount: 960
+    - duration: 150
+      arrivalCount: 600
 
     # Probe, 8 req/s - 29% / 12%.
-    - duration: 240
-      arrivalCount: 1920
+    - duration: 150
+      arrivalCount: 1200
 
     # Primary operating point, 14 req/s - 50% of Lambda's ceiling, 20% of
-    # EC2/ECS. Source of every reported latency figure; ~10000 requests.
-    - duration: 720
-      arrivalCount: 10080
+    # EC2/ECS. Source of every reported latency figure; 6720 requests.
+    - duration: 480
+      arrivalCount: 6720
 
     # Probe, 20 req/s - 71% of Lambda's ceiling. Closest approach to the knee.
     # Throttling here is a result, not a misconfiguration; report it.
-    - duration: 240
-      arrivalCount: 4800
+    - duration: 150
+      arrivalCount: 3000
 
   defaults:
     headers:
