@@ -23,9 +23,9 @@ compute model is the only intended difference.
 | ECS on EC2 | `c6i.large` hosts; task 1024 CPU units (1 vCPU) / 1024 MB |
 | Lambda | 1769 MB (one full vCPU), 1024 MB ephemeral, 30 s timeout, container image, **reserved concurrency 1** |
 | Database | one `db.m6g.large` PostgreSQL 17.6, Single-AZ, shared by all platforms |
-| Load generator | Artillery 2.0.23, in-region; five phases, **17.5 min per anilove run**, ~27 min per csv run, ~33 min per thumbnail run |
-| Arrivals per run | **3,840 (anilove, measured phases)**, **20,280 (csv, measured phases)**, **5,580 (thumbnail, derived phases)** |
-| HTTP requests per run | **19,200** (anilove, 5 per arrival), 20,280 (csv), 5,580 (thumbnail) |
+| Load generator | Artillery 2.0.23, in-region; five phases, **17.5 min per anilove and csv run**, ~33 min per thumbnail run |
+| Arrivals per run | **3,840 (anilove)**, **13,200 (csv)**, 5,580 (thumbnail, derived phases) |
+| HTTP requests per run | **19,200** (anilove, 5 per arrival), **13,200** (csv), 5,580 (thumbnail) |
 
 **Every platform gets one vCPU and 1 GB**, enforced three different ways: the
 ECS task definition caps CPU units and memory, the EC2 `docker run` is given
@@ -239,6 +239,8 @@ platforms" below.
 
 anilove was piloted and re-derived on 2026-08-10; its rates are measured and the
 warning banner is gone. See "AniLove: the ceiling is not 1000/duration" below.
+csv-processor phase durations were shortened the same day to a 17.5 min run with
+every rate unchanged, so the loss calibration behind them still holds.
 
 **thumbnail-generator was rescheduled on 2026-08-05, and again on 2026-08-06
 when its fixture changed.** Its service time had never been measured and the
@@ -749,14 +751,30 @@ difference between platforms.
 **Ten capped plus three uncapped, per workload — 13 runs each, 39 in total.**
 Revised upward from five on 2026-08-08.
 
-**Status, 2026-08-10.** anilove is complete: 13 runs, 10 capped and 3 uncapped,
-all on the committed schedule. Friedman on the capped set gives chi2 = 16.8,
-df = 2, p = 0.0002, Nemenyi CD = 1.05, which separates Lambda from both EC2 and
-ECS but does not separate EC2 from ECS; ratio of medians Lambda 4.14x EC2.
-Uncapped, n = 3, p = 0.0498, at the floor where Friedman can reach significance
-at all. csv-processor and thumbnail-generator have not been run under this
-protocol. **Breadth first from here:** five runs on all three beats thirteen on
-one, so the next runs belong to the other two workloads.
+**Status, 2026-08-10.** anilove and csv-processor are both complete: 13 runs
+each, 10 capped and 3 uncapped, all on the committed schedule.
+
+| | anilove | csv-processor |
+|---|---------|---------------|
+| Primary rate | 20 req/s (4 arrivals/s) | 14 req/s |
+| Run length | 17.5 min | 17.5 min |
+| EC2 / ECS / Lambda, capped | 5.29 / 5.70 / 22.01 ms | 20.21 / 20.45 / 65.00 ms |
+| Friedman, capped n=10 | chi2 16.8, p = 0.0002 | chi2 15.8, p = 0.0004 |
+| Nemenyi CD 1.05 | Lambda separates; EC2 vs ECS does not | same |
+| Ratio of medians | Lambda 4.14x | Lambda 3.20x |
+| Lambda loss at primary | 0.14% | 1.79% |
+| Uncapped n=3 | p = 0.0498, loss 0 | p = 0.097, loss 0 |
+| Cold start median | 882 ms (n=13) | 1214 ms (n=17) |
+| Cost crossover | 83.6 req/s | 24.9 req/s |
+
+**thumbnail-generator has not been run under this protocol** and is the only
+remaining gap; its phases are derived and its buckets deployed, so it is ready.
+
+Two findings that only appear with more than one workload. The invocation path
+has a fixed cost plus a payload term: 18.5 ms on anilove's few-hundred-byte
+JSON, 42.5 ms on csv's 520 KB upload, which the ALB base64-encodes before
+delivering it as an event. And the cost crossover falls as work per request
+grows, because the function is billed for work and the instance for time.
 
 | Runs | Config | Schedule |
 |------|--------|----------|

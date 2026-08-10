@@ -164,6 +164,9 @@ if (!runs.length) {
 
 // A run-platform below this covers only part of its window and is excluded.
 const MIN_COVERAGE = Number(flag("min-coverage", 0.9));
+// Only anilove has a database. For the stateless suites the same quantity,
+// total minus internal, is the framework and adapter cost around the work.
+const MID_LABEL = suite === "anilove" ? "database wait" : "framework + adapter";
 const dropped = [];
 const stats = {};
 for (const p of PLATFORMS) {
@@ -264,7 +267,7 @@ const lx = M.l;
 svg.push(`<rect x="${lx}" y="${ly - 9}" width="12" height="12" fill="${C_COMPUTE}"/>`);
 svg.push(`<text x="${lx + 18}" y="${ly + 1}" font-size="11.5" fill="#333">in-app compute</text>`);
 svg.push(`<rect x="${lx + 132}" y="${ly - 9}" width="12" height="12" fill="url(#hatch)" stroke="#33333322"/>`);
-svg.push(`<text x="${lx + 150}" y="${ly + 1}" font-size="11.5" fill="#333">database wait</text>`);
+svg.push(`<text x="${lx + 150}" y="${ly + 1}" font-size="11.5" fill="#333">${MID_LABEL}</text>`);
 svg.push(`<rect x="${lx + 246}" y="${ly - 9}" width="12" height="12" fill="${C_OVER}"/>`);
 svg.push(`<text x="${lx + 264}" y="${ly + 1}" font-size="11.5" fill="#333">invocation + network (client - in-app)</text>`);
 svg.push(`<text x="${M.l}" y="${H - 12}" font-size="10.5" fill="#666">medians across runs; whisker is the IQR of per-run mean total</text>`);
@@ -300,7 +303,7 @@ fs.writeFileSync(texPath, tex.join("\n") + "\n");
 
 console.log(`\n${suite} end-to-end latency split  (${condition}, ${nLabel})\n`);
 const pad = (s, n) => String(s).padEnd(n);
-console.log("  " + pad("platform", 10) + pad("compute", 11) + pad("db wait", 11) + pad("overhead", 11) + pad("total", 12) + pad("IQR of total", 18) + "runs");
+console.log("  " + pad("platform", 10) + pad("compute", 11) + pad(MID_LABEL.slice(0,10), 11) + pad("overhead", 11) + pad("total", 12) + pad("IQR of total", 18) + "runs");
 for (const p of present) {
   const s = stats[p];
   const iqr = s.q1 === null ? "-" : `[${s.q1.toFixed(2)}, ${s.q3.toFixed(2)}]`;
