@@ -130,6 +130,7 @@ function windowPeriods(intermediate, phase) {
 
 function summarise(periods) {
   let requests = 0;
+  let arrivals = 0;
   let weighted = 0;
   let n = 0;
   let min = Infinity;
@@ -141,6 +142,7 @@ function summarise(periods) {
   for (const p of periods) {
     for (const [k, v] of Object.entries(p.counters || {})) {
       if (k === "http.requests") requests += v;
+      else if (k === "vusers.created") arrivals += v;
       else if (k.startsWith("http.codes.")) codes[k.slice(11)] = (codes[k.slice(11)] || 0) + v;
       else if (k.startsWith("errors.")) errors[k.slice(7)] = (errors[k.slice(7)] || 0) + v;
     }
@@ -165,6 +167,7 @@ function summarise(periods) {
   return {
     periods: periods.length,
     requests,
+    arrivals,
     responses,
     ok,
     failed,
@@ -308,9 +311,16 @@ for (const [stamp, files] of runs) {
     // A report predating a phase change is windowed with today's boundaries and
     // silently lands on the wrong operating point. Compare the arrival rate the
     // window actually saw against what the YAML asks for.
+    // arrivalCount is arrivals, not requests, and AniLove's scenario issues five
+    // requests per arrival. Comparing the request rate against the arrival rate
+    // rejected every AniLove run by exactly 5x. Compare arrivals with arrivals,
+    // falling back to requests for a suite whose report has no vusers counter.
     if (activePhase.rate) {
-      row.observedRate = +(row.requests / (row.periods * PERIOD_S)).toFixed(1);
-      row.rateMismatch = Math.abs(row.observedRate - activePhase.rate) / activePhase.rate > 0.1;
+      const seconds = row.periods * PERIOD_S;
+      row.observedRate = +(row.requests / seconds).toFixed(1);
+      row.observedArrivalRate = row.arrivals ? +(row.arrivals / seconds).toFixed(2) : null;
+      const compare = row.observedArrivalRate === null ? row.observedRate : row.observedArrivalRate;
+      row.rateMismatch = Math.abs(compare - activePhase.rate) / activePhase.rate > 0.1;
     }
     perRun.push(row);
   }
