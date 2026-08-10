@@ -23,9 +23,9 @@ compute model is the only intended difference.
 | ECS on EC2 | `c6i.large` hosts; task 1024 CPU units (1 vCPU) / 1024 MB |
 | Lambda | 1769 MB (one full vCPU), 1024 MB ephemeral, 30 s timeout, container image, **reserved concurrency 1** |
 | Database | one `db.m6g.large` PostgreSQL 17.6, Single-AZ, shared by all platforms |
-| Load generator | Artillery 2.0.23, in-region; five phases, ~27 min per csv run, ~33 min per thumbnail run |
-| Arrivals per run | 8,640 (anilove, provisional), **20,280 (csv, measured phases)**, **5,580 (thumbnail, derived phases)** |
-| HTTP requests per run | **43,200** (anilove, 5 per arrival), 20,280 (csv), 5,580 (thumbnail) |
+| Load generator | Artillery 2.0.23, in-region; five phases, **17.5 min per anilove run**, ~27 min per csv run, ~33 min per thumbnail run |
+| Arrivals per run | **3,840 (anilove, measured phases)**, **20,280 (csv, measured phases)**, **5,580 (thumbnail, derived phases)** |
+| HTTP requests per run | **19,200** (anilove, 5 per arrival), 20,280 (csv), 5,580 (thumbnail) |
 
 **Every platform gets one vCPU and 1 GB**, enforced three different ways: the
 ECS task definition caps CPU units and memory, the EC2 `docker run` is given
@@ -184,7 +184,7 @@ those the two coincide. Getting this wrong understates AniLove's real load by
 
 | Suite | Est. service time | Ceiling at 1 worker | Committed peak `arrivalRate` | Reqs/arrival | Actual peak | Over ceiling |
 |-------|------------------|---------------------|------------------------------|--------------|-------------|--------------|
-| anilove | ~45 ms (estimate) | ~22 req/s | 50 | **5** | **250 req/s** | **11x** |
+| anilove | ~45 ms (estimate; **measured 2026-08-10: 3.9 ms in-app, 6.2 ms billed**) | ~22 req/s (**measured 40 req/s**) | 50 | **5** | **250 req/s** | **11x** |
 | csv-processor | ~175 ms (estimate) | ~5.7 req/s | 28 | 1 | 28 req/s | 4.9x |
 | thumbnail-generator | ~290 ms (estimate, later shown ~20x too high, see below) | ~3.4 req/s | 12 | 1 | 12 req/s | 3.5x |
 
@@ -237,8 +237,8 @@ their own ceiling, where they built 60-second queues and logged ~5000
 `ETIMEDOUT` each, while Lambda shed 69%. See "One rate cannot saturate three
 platforms" below.
 
-anilove still carries estimated rates and a warning banner in its `test-*.yml`.
-Pilot it before its numbers are used.
+anilove was piloted and re-derived on 2026-08-10; its rates are measured and the
+warning banner is gone. See "AniLove: the ceiling is not 1000/duration" below.
 
 **thumbnail-generator was rescheduled on 2026-08-05, and again on 2026-08-06
 when its fixture changed.** Its service time had never been measured and the
@@ -330,10 +330,8 @@ speed, because no phase approached the per-sandbox service rate.
 
 Run entirely above the ceiling and the result is queueing on EC2/ECS versus
 rejection on Lambda, not per-request cost. csv-processor's schedule is measured
-and thumbnail-generator's is derived; **anilove still carries the rates written
-for the retired `t2.micro` / `t3.small` pair and must be re-derived before any
-run whose numbers reach the paper**, and its `test-*.yml` carry a warning banner
-until it is.
+and thumbnail-generator's is derived; anilove's was measured on 2026-08-10 and
+its primary sits at 51% of the ceiling, with loss at 0.14%.
 
 The pilot is tooled:
 
@@ -354,6 +352,53 @@ Apply the same numbers to all three `test-*.yml` of that suite. Only the steady
 figure is used; every phase stays below the slowest platform's ceiling. If the
 pilot itself did not return ~100% 2xx, its rate must come down before the reading
 is usable.
+
+### AniLove: the ceiling is not 1000/duration
+
+**The formula above is only valid when one arrival is one request.** It was
+applied to anilove on 2026-08-10 and produced a schedule four times too fast.
+
+anilove's scenario is a five-step sequential CRUD flow, so what saturates a
+function limited to one concurrent execution is not invocation throughput but
+**how many virtual users hold an invocation at the same time**. Billed duration
+was 6.19 ms, which by the formula gives 162 req/s. The real constraint is the
+flow: 5 requests x 25.2 ms client-side = 126 ms per arrival, so one worker
+absorbs 7.9 arrivals/s = **40 req/s**.
+
+The first campaign run used the 162 req/s figure and put the primary at
+80 req/s. Measured loss, EC2 and ECS 0% at every rate:
+
+| Offered | 22.5 req/s | 45 req/s | 80 req/s | 115 req/s |
+|---------|-----------|----------|----------|-----------|
+| Lambda loss | 1.6% | 6.1% | **26.4%** | **40.2%** |
+
+It also pulled Lambda's mean *down* to 3.60 ms, below the uncontended 3.92 ms,
+because only survivors are timed — and it shifted the request mix, since a
+rejected POST prevents the four dependent steps: Lambda sent 39,734 requests
+against EC2's 57,371 under the same offered load. Re-derived at 4 arrivals/s
+(20 req/s, 51% of the flow ceiling), loss fell to 0.14%.
+
+**Rule: for a multi-step scenario, derive the ceiling from the flow duration,
+then confirm with a run. `1000/duration` is an upper bound, not the ceiling.**
+
+### Cold start: use Init Duration, not the in-app counter
+
+`app_cold_start_duration_seconds` does not measure a cold start. Its clock
+starts when `metrics.js` is required, which is already most of the way through
+initialisation, so it misses the runtime bootstrap and every `require` before
+it. Measured on the same containers on 2026-08-10:
+
+| Source | Value |
+|--------|-------|
+| `Init Duration` (CloudWatch Logs) | 802-1065 ms, median **882 ms**, n=13 |
+| `app_cold_start_duration_seconds` | 135, 144, 150, 65781, 238453 ms |
+
+The in-app figure is not merely low, it is unstable by three orders of
+magnitude, because for a container created by an apply and left idle the
+interval it measures is arbitrary. `scripts/capture-app-metrics.js` records
+`Init Duration` per repetition; the in-app value is kept alongside only to show
+the discrepancy. **Do not publish the in-app metric**, and treat
+application-level cold-start figures in the literature with the same caution.
 
 ### Smooth the arrivals: use arrivalCount, not arrivalRate
 
@@ -704,6 +749,15 @@ difference between platforms.
 **Ten capped plus three uncapped, per workload — 13 runs each, 39 in total.**
 Revised upward from five on 2026-08-08.
 
+**Status, 2026-08-10.** anilove is complete: 13 runs, 10 capped and 3 uncapped,
+all on the committed schedule. Friedman on the capped set gives chi2 = 16.8,
+df = 2, p = 0.0002, Nemenyi CD = 1.05, which separates Lambda from both EC2 and
+ECS but does not separate EC2 from ECS; ratio of medians Lambda 4.14x EC2.
+Uncapped, n = 3, p = 0.0498, at the floor where Friedman can reach significance
+at all. csv-processor and thumbnail-generator have not been run under this
+protocol. **Breadth first from here:** five runs on all three beats thirteen on
+one, so the next runs belong to the other two workloads.
+
 | Runs | Config | Schedule |
 |------|--------|----------|
 | 10 | capped, `reserved_concurrency = 1` | committed `test-*.yml` |
@@ -763,6 +817,41 @@ difference is not noise.
 `make aggregate-csv|anilove|thumbnail` does all of this: per-run statistics over
 one phase window, then median [Q1, Q3] across runs split by capped/uncapped, plus
 the Friedman test and effect size. No Python or R required.
+
+The rest of the analysis chain, added 2026-08-10:
+
+```bash
+make capture-anilove RUN=<run-id>   # BEFORE bench-down or destroy; also capture-csv, capture-thumbnail
+make aggregate-anilove              # per-run.csv + Friedman
+make figure-split-anilove           # compute / db wait / overhead, capped only
+make figure-condition-anilove       # capped vs uncapped, reads per-run.csv
+```
+
+`scripts/capture-app-metrics.js` is the one with a deadline: the `app_*` series
+live in the suite's Prometheus, which dies with the compose stack, and the
+Artillery reports do not contain them. It writes `app-metrics-<run-id>.json`
+next to the reports with the service-time split, CPU per request, RAM, cold
+start and the run's condition. Three details that took a campaign to find:
+
+- **Read counters at the window edges, not `increase()`.** The Lambda `/metrics`
+  endpoint is itself an invocation competing for the concurrency slot, so scrapes
+  are missed under load and leave gaps of minutes. `increase()` extrapolates
+  across a gap and undercounted by 30-40%; subtracting two `last_over_time`
+  reads is exact for a monotonic counter however sparse the samples are.
+- **`scrape_coverage` guards the result.** Scraped request count over the
+  client's count for the same window. Below 0.9 the split covers part of the
+  window only and the figure scripts drop that run-platform. Usually a Lambda
+  environment recycled mid-run.
+- **Uncapped Lambda invalidates `app_*` entirely.** Several environments answer
+  the scrape in turn, so the counter goes *backwards* between window edges; the
+  paired read detects the regression and drops the platform rather than emitting
+  a plausible wrong number. Experiment B is therefore client-side and CloudWatch
+  only.
+
+CPU comes from `app_cpu_seconds_total` divided by requests, never from
+`app_cpu_usage_percent`: a frozen sandbox accrues wall time but no CPU, so the
+percentage is diluted toward zero and reports Lambda as the *cheapest* platform
+as a pure artefact.
 
 **One limitation this analysis inherits.** Artillery's JSON keeps only a summary
 per 10 s period, not raw histogram buckets, so an exact percentile over a phase
