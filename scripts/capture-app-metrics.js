@@ -247,17 +247,45 @@ function query(expr, atEpoch) {
   const width = endS - startS;
   if (width <= PERIOD_S) usage("window is " + width + "s after trimming; lower --trim");
 
-  const R = `[${width}s]`;
+  // Paired counter reads, not increase(). The Lambda /metrics endpoint is itself
+  // an invocation competing for the single concurrency slot, so scrapes are
+  // missed under load and leave gaps of minutes. increase() extrapolates across
+  // a gap and undercounted by 30-40% on runs 3 and 4. Reading the counter at
+  // each edge and subtracting is exact for a monotonic counter no matter how
+  // sparse the samples are, as long as the container did not restart in between,
+  // which scrape_coverage below detects.
+  const LOOKBACK = "[300s]";
+  const at = (metric, t) => query(`sum by (instance) (last_over_time(${metric}${LOOKBACK}))`, t);
+  const [ts0, tc0, is0, ic0, ts1, tc1, is1, ic1] = await Promise.all([
+    at("app_total_execution_time_seconds_sum", startS),
+    at("app_total_execution_time_seconds_count", startS),
+    at("app_internal_processing_time_seconds_sum", startS),
+    at("app_internal_processing_time_seconds_count", startS),
+    at("app_total_execution_time_seconds_sum", endS),
+    at("app_total_execution_time_seconds_count", endS),
+    at("app_internal_processing_time_seconds_sum", endS),
+    at("app_internal_processing_time_seconds_count", endS),
+  ]);
+  const delta = (a, b) => {
+    const o = {};
+    for (const k of Object.keys(b)) {
+      const d = b[k] - (a[k] || 0);
+      // Negative means the counter restarted: the window is not usable.
+      o[k] = d >= 0 ? d : NaN;
+    }
+    return o;
+  };
+  const ts = delta(ts0, ts1);
+  const tc = delta(tc0, tc1);
+  const is = delta(is0, is1);
+  const ic = delta(ic0, ic1);
+
   // Cold start is not a rate. It is recorded once per container, so the counter
   // is read as an instant value: the total for the container that served the
   // run, not the change across the window. The run window normally contains no
   // cold start at all, because the health check and the 30 s Prometheus scrape
   // reach the function minutes before load starts.
-  const [ts, tc, is, ic, cs, cc] = await Promise.all([
-    query(`sum by (instance) (increase(app_total_execution_time_seconds_sum${R}))`, endS),
-    query(`sum by (instance) (increase(app_total_execution_time_seconds_count${R}))`, endS),
-    query(`sum by (instance) (increase(app_internal_processing_time_seconds_sum${R}))`, endS),
-    query(`sum by (instance) (increase(app_internal_processing_time_seconds_count${R}))`, endS),
+  const [cs, cc] = await Promise.all([
     query(`sum by (instance) (app_cold_start_duration_seconds_sum)`, endS),
     query(`sum by (instance) (app_cold_start_duration_seconds_count)`, endS),
   ]);
@@ -265,7 +293,7 @@ function query(expr, atEpoch) {
   const clientReq = readClientRequests(t0, phase);
   const platforms = {};
   for (const p of PLATFORMS) {
-    if (!(p in tc) || !tc[p]) continue;
+    if (!(p in tc) || !tc[p] || Number.isNaN(tc[p])) continue;
     const totalMs = (1000 * ts[p]) / tc[p];
     // csv-processor and thumbnail-generator have no database, so the internal
     // series is absent and the split is not defined for them.
