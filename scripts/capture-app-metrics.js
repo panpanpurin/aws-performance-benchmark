@@ -269,7 +269,11 @@ function query(expr, atEpoch) {
   const delta = (a, b) => {
     const o = {};
     for (const k of Object.keys(b)) {
-      const d = b[k] - (a[k] || 0);
+      if (!(k in a)) {
+        o[k] = NaN;
+        continue;
+      }
+      const d = b[k] - a[k];
       // Negative means the counter restarted: the window is not usable.
       o[k] = d >= 0 ? d : NaN;
     }
@@ -383,11 +387,13 @@ function query(expr, atEpoch) {
         g(v.cpu_ms_per_request, "ms", 11) + g(v.ram_mean_mb, "MB", 10) + g(v.ram_peak_mb, "MB", 10) + v.requests
     );
   }
-  const bad = PLATFORMS.filter((p) => platforms[p] && platforms[p].scrape_coverage !== null && platforms[p].scrape_coverage < 0.9);
+  const bad = PLATFORMS.filter(
+    (p) => platforms[p] && platforms[p].scrape_coverage !== null && (platforms[p].scrape_coverage < 0.9 || platforms[p].scrape_coverage > 1.1)
+  );
   if (bad.length) {
-    console.log("\n  WARN incomplete scrape coverage: " + bad.map((p) => `${p} ${(100 * platforms[p].scrape_coverage).toFixed(0)}%`).join(", "));
-    console.log("       the app_* split for those platforms covers part of the window only.");
-    console.log("       Usual cause: Lambda recycled the execution environment mid-run.");
+    console.log("\n  WARN scrape coverage outside [0.9, 1.1]: " + bad.map((p) => `${p} ${(100 * platforms[p].scrape_coverage).toFixed(0)}%`).join(", "));
+    console.log("       the app_* split for those platforms does not describe the window.");
+    console.log("       Low: environment recycled mid-run. High: the window edges did not bracket the phase.");
   }
 
   const li = out.lambda_init;

@@ -23,9 +23,9 @@ compute model is the only intended difference.
 | ECS on EC2 | `c6i.large` hosts; task 1024 CPU units (1 vCPU) / 1024 MB |
 | Lambda | 1769 MB (one full vCPU), 1024 MB ephemeral, 30 s timeout, container image, **reserved concurrency 1** |
 | Database | one `db.m6g.large` PostgreSQL 17.6, Single-AZ, shared by all platforms |
-| Load generator | Artillery 2.0.23, in-region; five phases, **17.5 min per anilove and csv run**, ~33 min per thumbnail run |
-| Arrivals per run | **3,840 (anilove)**, **13,200 (csv)**, 5,580 (thumbnail, derived phases) |
-| HTTP requests per run | **19,200** (anilove, 5 per arrival), **13,200** (csv), 5,580 (thumbnail) |
+| Load generator | Artillery 2.0.23, in-region; five phases, **17.5 min per run, all three suites** |
+| Arrivals per run | **3,840 (anilove)**, **13,200 (csv)**, **4,500 (thumbnail)** |
+| HTTP requests per run | **19,200** (anilove, 5 per arrival), **13,200** (csv), **4,500** (thumbnail) |
 
 **Every platform gets one vCPU and 1 GB**, enforced three different ways: the
 ECS task definition caps CPU units and memory, the EC2 `docker run` is given
@@ -751,30 +751,37 @@ difference between platforms.
 **Ten capped plus three uncapped, per workload — 13 runs each, 39 in total.**
 Revised upward from five on 2026-08-08.
 
-**Status, 2026-08-10.** anilove and csv-processor are both complete: 13 runs
-each, 10 capped and 3 uncapped, all on the committed schedule.
+**Status, 2026-08-11. The campaign is complete: 39 runs, 13 per workload**
+(10 capped + 3 uncapped), all on the committed schedules.
 
-| | anilove | csv-processor |
-|---|---------|---------------|
-| Primary rate | 20 req/s (4 arrivals/s) | 14 req/s |
-| Run length | 17.5 min | 17.5 min |
-| EC2 / ECS / Lambda, capped | 5.29 / 5.70 / 22.01 ms | 20.21 / 20.45 / 65.00 ms |
-| Friedman, capped n=10 | chi2 16.8, p = 0.0002 | chi2 15.8, p = 0.0004 |
-| Nemenyi CD 1.05 | Lambda separates; EC2 vs ECS does not | same |
-| Ratio of medians | Lambda 4.14x | Lambda 3.20x |
-| Lambda loss at primary | 0.14% | 1.79% |
-| Uncapped n=3 | p = 0.0498, loss 0 | p = 0.097, loss 0 |
-| Cold start median | 882 ms (n=13) | 1214 ms (n=17) |
-| Cost crossover | 83.6 req/s | 24.9 req/s |
+| | anilove | csv-processor | thumbnail |
+|---|---------|---------------|-----------|
+| Primary rate | 20 req/s | 14 req/s | 5 req/s |
+| EC2 / ECS / Lambda, capped | 5.29 / 5.70 / 22.01 ms | 20.21 / 20.45 / 65.00 ms | 86.83 / 84.88 / 178.80 ms |
+| Friedman, capped n=10 | chi2 16.8, p = 0.0002 | chi2 15.8, p = 0.0004 | chi2 20.0, p < 0.0001 |
+| EC2 vs ECS | not separable | not separable | not separable (1.00 vs CD 1.05) |
+| Ratio of medians | Lambda 4.14x | 3.20x | 2.15x |
+| Lambda loss at primary | 0.14% | 1.79% | 0.74% |
+| Uncapped n=3 | p = 0.0498 | p = 0.097 | p = 0.0498 |
+| Cold start median | 884 ms (n=26) | 1215 ms (n=37) | 617 ms (n=20) |
+| Cost crossover | 83.6 req/s | 24.9 req/s | 7.5 req/s |
+| Lambda app_* usable | 7/10 | 4/10 | 5/10 |
 
-**thumbnail-generator has not been run under this protocol** and is the only
-remaining gap; its phases are derived and its buckets deployed, so it is ready.
+**Three findings that need more than one workload.**
 
-Two findings that only appear with more than one workload. The invocation path
-has a fixed cost plus a payload term: 18.5 ms on anilove's few-hundred-byte
-JSON, 42.5 ms on csv's 520 KB upload, which the ALB base64-encodes before
-delivering it as an event. And the cost crossover falls as work per request
-grows, because the function is billed for work and the instance for time.
+1. **The invocation path is a fixed cost plus a payload term.** Lambda time
+   outside the application: 18.4 ms at ~0.2 KB, 42.5 ms at 520 KB, 60.4 ms at
+   930 KB. Fitted on the extremes that is ~18 ms + ~46 ms/MB, which predicts
+   42.3 (measured 42.5) and 61.2 (measured 60.4). The ALB base64-encodes the
+   body before delivering it as an event. EC2/ECS show no such term, 3-9 ms
+   across four orders of magnitude of payload.
+2. **Cold start follows the dependency graph, not image size.** thumbnail is a
+   larger image than anilove (155 vs 147 MB) but starts 30% faster (617 vs
+   884 ms); csv is largest and slowest (251 MB, 1215 ms). Sharp is a
+   precompiled binary; Sequelize builds model metadata and a pool at import;
+   pandas/numpy register a large module graph.
+3. **The cost crossover falls as work per request grows**, 83.6 -> 24.9 -> 7.5
+   req/s, because the function is billed for work and the instance for time.
 
 | Runs | Config | Schedule |
 |------|--------|----------|

@@ -14,9 +14,10 @@ scrape_configs:
   # ---- EC2 ----
 
   - job_name: instrumented-metrics-ec2
+    scheme: https
     metrics_path: /metrics
     static_configs:
-      - targets: ["host.docker.internal:18084"]
+      - targets: ["REPLACE_ME"]
         labels:
           service: app-instrumented-ec2
           environment: production
@@ -33,9 +34,10 @@ scrape_configs:
   # ---- ECS ----
 
   - job_name: instrumented-metrics-ecs
+    scheme: https
     metrics_path: /metrics
     static_configs:
-      - targets: ["host.docker.internal:18085"]
+      - targets: ["REPLACE_ME"]
         labels:
           service: app-instrumented-ecs
           environment: production
@@ -62,7 +64,7 @@ scrape_configs:
     scheme: https
     metrics_path: /metrics
     static_configs:
-      - targets: []
+      - targets: ["REPLACE_ME"]
         # Filled by make sync-targets, e.g. ['xxxx.lambda-url.region.on.aws']
         labels:
           service: app-instrumented-lambda

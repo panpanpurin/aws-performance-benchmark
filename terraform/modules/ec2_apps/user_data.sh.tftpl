@@ -1,10 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-# run_nonce: unused by the script. It changes this file so user_data changes,
-# and user_data_replace_on_change gives the repetition a fresh instance.
-# nonce=${run_nonce}
-
 # No dnf update: the ECS host does not patch at boot either, and an unpinned
 # package set would differ between repetitions.
 dnf install -y docker aws-cli jq
@@ -15,6 +11,12 @@ APP="${app_name}"
 PORT="${app_port}"
 IMAGE="${image_ref}"
 DB_SCHEMA="${db_schema}"
+# Identifies the repetition that provisioned this host. It also changes
+# user_data, and user_data_replace_on_change then replaces the instance, so a
+# new value means fresh compute.
+RUN_NONCE="${run_nonce}"
+
+echo "$RUN_NONCE" > /etc/run-nonce
 
 if [[ -n "$IMAGE" ]]; then
   ACCOUNT=$(aws sts get-caller-identity --query Account --output text --region "$REGION")
@@ -24,6 +26,7 @@ if [[ -n "$IMAGE" ]]; then
   ENV_ARGS=()
   ENV_ARGS+=(-e "PORT=$PORT")
   ENV_ARGS+=(-e "NODE_ENV=production")
+  ENV_ARGS+=(-e "RUN_NONCE=$RUN_NONCE")
 
   if [[ "${needs_rds}" == "true" && -n "${db_secret_arn}" ]]; then
     SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id "${db_secret_arn}" --region "$REGION" --query SecretString --output text)

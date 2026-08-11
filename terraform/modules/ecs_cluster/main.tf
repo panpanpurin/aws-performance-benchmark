@@ -81,10 +81,14 @@ resource "aws_launch_template" "ecs" {
     }
   }
 
+  # The nonce line identifies the repetition that provisioned the host, and
+  # changing it produces a new launch template version, which instance_refresh
+  # below turns into replaced hosts.
   user_data = base64encode(<<-EOT
     #!/bin/bash
     echo ECS_CLUSTER=${aws_ecs_cluster.this.name} >> /etc/ecs/ecs.config
     echo ECS_ENABLE_CONTAINER_METADATA=true >> /etc/ecs/ecs.config
+    echo "${var.run_nonce}" > /etc/run-nonce
   EOT
   )
 
@@ -153,6 +157,16 @@ resource "aws_autoscaling_group" "ecs" {
     key                 = "AmazonECSManaged"
     value               = "true"
     propagate_at_launch = true
+  }
+
+  # Cycles the hosts when the launch template changes, which the nonce does.
+  # The 50% floor keeps part of the cluster serving while the rest replaces.
+  instance_refresh {
+    strategy = "Rolling"
+    preferences {
+      min_healthy_percentage = 50
+      instance_warmup        = 120
+    }
   }
 
   lifecycle {
@@ -226,8 +240,8 @@ resource "aws_ecs_task_definition" "app" {
           [
             { name = "PORT", value = tostring(each.value.port) },
             { name = "NODE_ENV", value = "production" },
-            # Unread by the app. A new value is a new task definition revision,
-            # so the service rolls a fresh task for the repetition.
+            # Identifies the repetition. A new value is a new task definition
+            # revision, so the service rolls a fresh task.
             { name = "RUN_NONCE", value = var.run_nonce },
           ],
           each.value.needs_rds ? [

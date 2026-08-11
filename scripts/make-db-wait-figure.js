@@ -164,6 +164,7 @@ if (!runs.length) {
 
 // A run-platform below this covers only part of its window and is excluded.
 const MIN_COVERAGE = Number(flag("min-coverage", 0.9));
+const MAX_COVERAGE = Number(flag("max-coverage", 1.1));
 // Only anilove has a database. For the stateless suites the same quantity,
 // total minus internal, is the framework and adapter cost around the work.
 const MID_LABEL = suite === "anilove" ? "database wait" : "framework + adapter";
@@ -179,7 +180,7 @@ for (const p of PLATFORMS) {
     if (!v || v.internal_ms === null) continue;
     // Partial windows are not comparable with whole ones. Written by
     // capture-app-metrics.js; usually a Lambda environment recycled mid-run.
-    if (v.scrape_coverage !== null && v.scrape_coverage !== undefined && v.scrape_coverage < MIN_COVERAGE) {
+    if (v.scrape_coverage !== null && v.scrape_coverage !== undefined && (v.scrape_coverage < MIN_COVERAGE || v.scrape_coverage > MAX_COVERAGE)) {
       dropped.push(`${r.run_id} ${p} ${(100 * v.scrape_coverage).toFixed(0)}%`);
       continue;
     }
