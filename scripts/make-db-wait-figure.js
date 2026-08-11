@@ -169,6 +169,8 @@ const MAX_COVERAGE = Number(flag("max-coverage", 1.1));
 // total minus internal, is the framework and adapter cost around the work.
 const MID_LABEL = suite === "anilove" ? "database wait" : "framework + adapter";
 const dropped = [];
+const noSeries = [];
+const noClient = [];
 const stats = {};
 for (const p of PLATFORMS) {
   const comp = [];
@@ -177,7 +179,14 @@ for (const p of PLATFORMS) {
   const total = [];
   for (const r of runs) {
     const v = r.platforms[p];
-    if (!v || v.internal_ms === null) continue;
+    if (!v) {
+      noSeries.push(`${r.run_id} ${p}`);
+      continue;
+    }
+    if (v.internal_ms === null) {
+      noSeries.push(`${r.run_id} ${p} (no internal time)`);
+      continue;
+    }
     // Partial windows are not comparable with whole ones. Written by
     // capture-app-metrics.js; usually a Lambda environment recycled mid-run.
     if (v.scrape_coverage !== null && v.scrape_coverage !== undefined && (v.scrape_coverage < MIN_COVERAGE || v.scrape_coverage > MAX_COVERAGE)) {
@@ -188,7 +197,10 @@ for (const p of PLATFORMS) {
     // network, and for Lambda the invocation path. EC2 and ECS carry the same
     // network and ALB, so they are the control for that term.
     const cm = primary ? clientMean(r.run_id, p, primary) : null;
-    if (cm === null) continue;
+    if (cm === null) {
+      noClient.push(`${r.run_id} ${p}`);
+      continue;
+    }
     comp.push(v.internal_ms);
     wait.push(v.db_wait_ms);
     over.push(Math.max(0, cm - v.total_ms));
@@ -223,8 +235,16 @@ const bw = Math.min(88, PW / (present.length * 1.9));
 const y = (v) => M.t + PH - (v / yTop) * PH;
 const xc = (i) => M.l + (PW / present.length) * (i + 0.5);
 
+// Aim for roughly seven gridlines at any scale. A fixed step drew 44 labels on
+// top of each other once the media workload pushed the axis past 200 ms.
+const niceStep = (span, target = 7) => {
+  const raw = span / target;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const n = raw / mag;
+  return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * mag;
+};
 const ticks = [];
-const step = yTop <= 5 ? 1 : yTop <= 12 ? 2 : 5;
+const step = niceStep(yTop);
 for (let v = 0; v <= yTop + 1e-9; v += step) ticks.push(+v.toFixed(3));
 
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
@@ -263,15 +283,19 @@ present.forEach((p, i) => {
   svg.push(`<text x="${xc(i)}" y="${M.t + PH + 18}" font-size="12.5" fill="#111" text-anchor="middle">${LABEL[p]}</text>`);
 });
 
+// Laid out from the measured label width. Fixed offsets collided as soon as the
+// middle label changed length between suites.
 const ly = H - 34;
-const lx = M.l;
-svg.push(`<rect x="${lx}" y="${ly - 9}" width="12" height="12" fill="${C_COMPUTE}"/>`);
-svg.push(`<text x="${lx + 18}" y="${ly + 1}" font-size="11.5" fill="#333">in-app compute</text>`);
-svg.push(`<rect x="${lx + 132}" y="${ly - 9}" width="12" height="12" fill="url(#hatch)" stroke="#33333322"/>`);
-svg.push(`<text x="${lx + 150}" y="${ly + 1}" font-size="11.5" fill="#333">${MID_LABEL}</text>`);
-svg.push(`<rect x="${lx + 246}" y="${ly - 9}" width="12" height="12" fill="${C_OVER}"/>`);
-svg.push(`<text x="${lx + 264}" y="${ly + 1}" font-size="11.5" fill="#333">invocation + network (client - in-app)</text>`);
-svg.push(`<text x="${M.l}" y="${H - 12}" font-size="10.5" fill="#666">medians across runs; whisker is the IQR of per-run mean total</text>`);
+const LEG_FONT = 11.5;
+const textW = (s) => s.length * LEG_FONT * 0.55;
+let lx = M.l;
+for (const [fill, text] of [[C_COMPUTE, "in-app compute"], ["url(#hatch)", MID_LABEL], [C_OVER, "invocation + network"]]) {
+  const hatched = fill.startsWith("url");
+  svg.push(`<rect x="${lx.toFixed(1)}" y="${ly - 9}" width="12" height="12" fill="${fill}"${hatched ? ' stroke="#33333322"' : ""}/>`);
+  svg.push(`<text x="${(lx + 18).toFixed(1)}" y="${ly + 1}" font-size="${LEG_FONT}" fill="#333">${esc(text)}</text>`);
+  lx += 18 + textW(text) + 24;
+}
+svg.push(`<text x="${M.l}" y="${H - 12}" font-size="10.5" fill="#666">medians across runs. Whisker is IQR of per-run mean total. Last band is client minus in-app.</text>`);
 svg.push("</svg>");
 
 // ---------------------------------------------------------------- pgfplots
@@ -282,6 +306,9 @@ tex.push("\\begin{tikzpicture}");
 tex.push("  \\begin{axis}[");
 tex.push("      ybar stacked, bar width=22pt, width=0.86\\linewidth, height=6cm,");
 tex.push(`      ymin=0, ymax=${yTop},`);
+// The caption points the reader at this title for the per-platform run count.
+// Without it the reduced Lambda n would go undisclosed in the compiled paper.
+tex.push(`      title={\\footnotesize runs per platform: ${nLabel.replace("-", "--")}}, title style={yshift=-1mm},`);
 tex.push("      ylabel={mean time per request (ms)},");
 tex.push(`      symbolic x coords={${present.map((p) => LABEL[p]).join(",")}},`);
 tex.push("      xtick=data, ymajorgrids, major grid style={gray!25},");
@@ -290,8 +317,8 @@ tex.push("      legend cell align=left,");
 tex.push("    ]");
 tex.push(`    \\addplot+[fill=blue!70!black, draw=none] coordinates {${present.map((p) => `(${LABEL[p]},${stats[p].compute.toFixed(4)})`).join(" ")}};`);
 tex.push(`    \\addplot+[fill=orange!80!black, draw=none, postaction={pattern=north east lines}] coordinates {${present.map((p) => `(${LABEL[p]},${stats[p].wait.toFixed(4)})`).join(" ")}};`);
-  tex.push(`    \addplot+[fill=black!35, draw=none] coordinates {${present.map((p) => `(${LABEL[p]},${stats[p].over.toFixed(4)})`).join(" ")}};`);
-tex.push("    \\legend{in-app compute, database wait, invocation + network}");
+tex.push(`    \\addplot+[fill=black!35, draw=none] coordinates {${present.map((p) => `(${LABEL[p]},${stats[p].over.toFixed(4)})`).join(" ")}};`);
+tex.push(`    \\legend{in-app compute, ${MID_LABEL}, invocation + network}`);
 tex.push("  \\end{axis}");
 tex.push("\\end{tikzpicture}");
 
@@ -314,5 +341,7 @@ for (const p of present) {
   );
 }
 if (dropped.length) console.log(`\nexcluded for incomplete scrape coverage: ${dropped.join(", ")}`);
+if (noSeries.length) console.log(`\nno app series scraped in the window: ${noSeries.join(", ")}`);
+if (noClient.length) console.log(`\nno client mean for the primary phase: ${noClient.join(", ")}`);
 if (nRuns < 3) console.log(`\nnote: n=${nRuns}. IQR is undefined below n=2 and unstable below n=4.`);
 console.log(`\nwrote ${svgPath}\n      ${texPath}`);

@@ -119,8 +119,14 @@ svg.push(`<text x="${M.l}" y="20" font-size="13" font-weight="600" fill="#111">$
 
 const fill = (c) => (c === "capped" ? COLOR.capped : "url(#up)");
 
-// Panel A, latency
-for (let v = 0; v <= latTop + 1e-9; v += 5) {
+const niceStep = (span, target) => {
+  const raw = span / target;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const n = raw / mag;
+  return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * mag;
+};
+const latStep = niceStep(latTop, 6);
+for (let v = 0; v <= latTop + 1e-9; v += latStep) {
   svg.push(`<line x1="${M.l}" y1="${yA(v).toFixed(1)}" x2="${M.l + PW}" y2="${yA(v).toFixed(1)}" stroke="#e6e6e6"/>`);
   svg.push(`<text x="${M.l - 8}" y="${(yA(v) + 4).toFixed(1)}" font-size="11" fill="#555" text-anchor="end">${v}</text>`);
 }
