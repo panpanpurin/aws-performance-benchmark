@@ -24,26 +24,26 @@ config:
 
     # Warm-up at the primary rate. Warming lower leaves a step change whose
     # transient falls inside the reported window. Discarded.
-    - duration: 180
-      arrivalCount: 900
-
-    # Probe, 1 req/s - 13% of Lambda ceiling, 8% of EC2/ECS.
-    - duration: 240
-      arrivalCount: 240
-
-    # Probe, 2.5 req/s - 32% / 19%.
-    - duration: 240
+    - duration: 120
       arrivalCount: 600
 
+    # Probe, 1 req/s - 13% of Lambda ceiling, 8% of EC2/ECS.
+    - duration: 150
+      arrivalCount: 150
+
+    # Probe, 2.5 req/s - 32% / 19%.
+    - duration: 150
+      arrivalCount: 375
+
     # Primary operating point, 5 req/s - 65% of Lambda ceiling, 39% of EC2/ECS.
-    # Source of every reported figure; 3600 requests.
-    - duration: 720
-      arrivalCount: 3600
+    # Source of every reported figure; 2400 requests.
+    - duration: 480
+      arrivalCount: 2400
 
     # Probe, 6.5 req/s - 84% / 50%. Loss here is a result, report it beside
     # latency rather than on its own.
-    - duration: 240
-      arrivalCount: 1560
+    - duration: 150
+      arrivalCount: 975
 
   defaults:
     headers:
