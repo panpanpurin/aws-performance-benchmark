@@ -45,27 +45,46 @@ make bench-anilove      # and/or bench-csv, bench-thumbnail
 
 ## Run
 
-**Windows**
+### AWS runs: from the in-region generator
 
-```bat
-cd benchmarks\suites\anilove\artillery
-run-parallel.bat
-```
-
-**Linux / macOS / Git Bash**
+This is the path a reported run must take. The phase rates are beyond what a
+workstation uplink can supply, and a saturated generator degrades all three
+platforms unevenly — which reads as a platform difference rather than as a
+broken run. Needs `enable_loadgen = true`.
 
 ```bash
-cd benchmarks/suites/anilove/artillery
-./run-parallel.sh
+make loadgen-sync         # stage the current suites onto the generator
+make loadgen-anilove      # or loadgen-csv, loadgen-thumbnail
 ```
 
-**From repo root**
+The three platforms run concurrently on the generator and the reports come back
+to `benchmarks/suites/<app>/artillery/logs/` when it finishes. `make
+loadgen-sync` uploads; it never retrieves results, so re-run it after any edit
+to a `test-*.yml`, processor or fixture, and after `make sync-targets`.
+
+Client-side metrics come from those JSON reports, not from the
+`publish-metrics` plugin: the pushgateways listen on the workstation and the
+generator cannot reach them.
+
+### From this workstation
+
+Fine for local work, smoke tests and pilots against a stack you are still
+wiring up. Not for a reported measurement.
 
 ```bash
 make artillery-anilove
 make artillery-csv
 make artillery-thumbnail
 ```
+
+Or per suite:
+
+```bash
+cd benchmarks/suites/anilove/artillery
+./run-parallel.sh          # Windows: run-parallel.bat
+```
+
+Both are thin wrappers around `benchmarks/scripts/run-parallel.sh`.
 
 Logs: `artillery/logs/` under each suite.
 

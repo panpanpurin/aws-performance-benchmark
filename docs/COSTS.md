@@ -204,12 +204,15 @@ OK   EBS volumes: none
 The NAT gateway and Elastic IPs are the ones worth confirming by eye: they bill
 hourly with nothing running on them, and are easy to leave behind.
 
-**Download your results before destroying.** The load generator's S3 bucket is
-declared with `force_destroy`, so the teardown empties and deletes it without
-prompting, and every Artillery report still only in S3 goes with it. `make
-loadgen-sync` pulls them down; `make validate-teardown` warns while the bucket
-still holds objects, which is why it is worth running *before* the destroy as
-well as after.
+**Check your results are on disk before destroying.** The load generator's S3
+bucket is declared with `force_destroy`, so the teardown empties and deletes it
+without prompting, and any Artillery report still only in S3 goes with it. A
+completed `make loadgen-<suite>` has already copied its six artifacts into the
+suite's `artillery/logs/`, so the usual case is safe; a run whose download
+failed is not. `make loadgen-sync` is not the rescue command — it stages suites
+*onto* the generator. `make validate-teardown` warns while the bucket still
+holds objects, which is why it is worth running *before* the destroy as well as
+after.
 
 Nothing else is retained either: RDS uses `skip_final_snapshot`, the secrets
 module uses a zero-day recovery window, and ECR repositories are `force_delete`.

@@ -234,6 +234,33 @@ types are configured and fails if `cpu_credits` is left unset.
 | CSV | Python 3.12 + Mangum |
 | Thumbnail / AniLove | Node.js 22 + serverless express |
 
+## Load generator
+
+`modules/loadgen`, gated behind `enable_loadgen`. Off by default, but **required
+for a real AWS run**: a workstation uplink cannot supply the measured phase
+rates — the CSV suite alone asks for about 360 Mbps at the primary rate and
+770 Mbps at the stress probe — and a generator that saturates degrades all three
+platforms unevenly rather than failing cleanly, which looks like a result.
+
+| Item | Configuration |
+|------|----------------|
+| Instance | `c6i.xlarge` (`loadgen_instance_type`), deliberately larger than the hosts under test so it is never the bottleneck |
+| Placement | Public subnet, same region and VPC as the targets |
+| Access | SSM only; no inbound port, no SSH |
+| Artillery | Version pinned by `artillery_version`, kept equal to what `run-parallel.sh` resolves locally |
+| Transport | An S3 bucket, `force_destroy`. Suites go up, reports come back |
+
+Two Make targets drive it, and they move in opposite directions:
+
+| Target | Direction |
+|--------|-----------|
+| `make loadgen-sync` | Workstation → S3 → generator. Stages `test-*.yml`, `pilot-*.yml`, processors and fixtures. The generator runs what was last synced, not the working tree, so re-run it after every edit and after `make sync-targets` |
+| `make loadgen-<suite>` | Runs the three platforms concurrently on the generator, then downloads the six artifacts into `benchmarks/suites/<suite>/artillery/logs/` |
+
+Client-side metrics come from the downloaded JSON report rather than the
+`publish-metrics` plugin: the pushgateways listen on the workstation and the
+generator cannot reach them.
+
 ## Parameter summary
 
 | Component | Main parameters |

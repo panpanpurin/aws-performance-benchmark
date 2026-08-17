@@ -59,9 +59,18 @@ make validate-fairness                              # only the compute model var
 make bench-anilove                                  # Prometheus + Grafana
 make metrics-proxy                                  # HTTP-only stacks; no-op with a domain
 make validate-bench                                 # before the 17.5 minute run
-make artillery-anilove                              # EC2 + ECS + Lambda in parallel
+make loadgen-sync                                   # stage suites onto the generator
+make loadgen-anilove                                # EC2 + ECS + Lambda in parallel
+make capture-anilove RUN=<run-id>                   # app_* to disk before teardown
 make destroy                                        # or make ecs-down
 ```
+
+Load comes from an in-region generator (`enable_loadgen = true`), not from this
+machine: a workstation uplink cannot supply the measured phase rates, and a
+generator that saturates degrades all three platforms unevenly rather than
+failing cleanly. `make artillery-anilove` runs the same suite from here and is
+for local work and pilots. See
+[docs/PARALLEL-BENCHMARK.md](./docs/PARALLEL-BENCHMARK.md).
 
 The repository ships Artillery `target` as `https://REPLACE_ME` and empty
 Prometheus scrape targets on purpose, so no live endpoint is published.
@@ -76,7 +85,7 @@ hand.
 | Push images to ECR | `make push-images` |
 | Check a config before spending time or money | `make validate` |
 | Scripts / automation | [scripts/README.md](./scripts/README.md) |
-| AWS load + charts (one suite) | `make bench-anilove` then `make artillery-anilove` |
+| AWS load + charts (one suite) | `make bench-anilove` then `make loadgen-anilove` |
 | All three suites together | `make bench-anilove bench-csv bench-thumbnail` |
 | Workload bounds | [docs/WORKLOADS.md](./docs/WORKLOADS.md) |
 | Infrastructure design | [docs/INFRASTRUCTURE.md](./docs/INFRASTRUCTURE.md) |

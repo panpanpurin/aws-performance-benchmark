@@ -176,8 +176,13 @@ App and node exporter scrape targets start empty. Pushgateway jobs use Compose s
 
 ```bash
 make bench-anilove
-make artillery-anilove
+make loadgen-sync        # stage the suites onto the in-region generator
+make loadgen-anilove     # EC2 + ECS + Lambda in parallel
 ```
+
+`make artillery-anilove` runs the same three configs from this machine. Use it
+for pilots and local work only: the phase rates are past what a workstation
+uplink supplies, and a generator that saturates biases all three platforms.
 
 ## Local Docker path
 
@@ -197,5 +202,8 @@ Local ports match the AniLove suite range. Do not run `benchmarks/suites/anilove
 5. Prometheus app targets filled for the suite under test.
 6. Artillery `target` set (not `https://REPLACE_ME`).
 7. Pushgateway ports match the suite ([PORTS.md](../benchmarks/docs/PORTS.md)).
-8. Report Lambda cold and warm separately when relevant.
-9. Use the correct Grafana port per suite if several run at once.
+8. `enable_loadgen = true`, and `make loadgen-sync` run after the last edit to
+   any `test-*.yml`, processor or fixture — the generator runs what was last
+   synced, not your working tree.
+9. Report Lambda cold and warm separately when relevant.
+10. Use the correct Grafana port per suite if several run at once.

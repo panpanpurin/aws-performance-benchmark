@@ -55,7 +55,9 @@ credits would otherwise vary between platforms and carry across repetitions. See
 
 Run `make ecs-down` first — the capacity provider otherwise replaces instances while the teardown is removing them — and `make validate-teardown` afterwards. A successful `terraform destroy` proves the state is clean, not the account: resources created outside the stack, dropped from state, or left by a partial destroy keep billing invisibly. The validator asks AWS directly and exits non-zero while anything under the project prefix is still running.
 
-The teardown keeps nothing: `force_destroy` on the load generator's S3 bucket (**download results first — `make loadgen-sync`**), `skip_final_snapshot` on RDS, a zero-day recovery window on secrets, and `force_delete` on the ECR repositories, so the next session needs `make push-images` again.
+The teardown keeps nothing: `force_destroy` on the load generator's S3 bucket, `skip_final_snapshot` on RDS, a zero-day recovery window on secrets, and `force_delete` on the ECR repositories, so the next session needs `make push-images` again.
+
+`make loadgen-<suite>` already copies each run's six artifacts (a `.json` and a `.log` per platform) into `benchmarks/suites/<suite>/artillery/logs/` before it exits, so a completed run is on disk and survives the destroy. Note that `make loadgen-sync` moves the other way — it stages the suites *onto* the generator — so it is not the command that rescues results. What does not survive is a run whose download failed; `make validate-teardown` warns while the bucket still holds objects, which is why it is worth running before the destroy as well as after.
 
 ## Apply order
 

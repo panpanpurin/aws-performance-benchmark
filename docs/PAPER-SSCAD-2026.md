@@ -696,8 +696,10 @@ make validate-fairness    # metric names, CPU pins, deployed specs
 make bench-anilove        # Prometheus + Grafana; also bench-csv, bench-thumbnail
                           # metrics-proxy not needed: the ALB hostnames resolve
 make validate-bench       # config check before the 17.5 minute run
-make artillery-anilove    # EC2 + ECS + Lambda in parallel
-make loadgen-sync         # pull the reports down - destroy deletes the bucket
+make loadgen-sync         # stage the suites onto the in-region generator
+make loadgen-anilove      # EC2 + ECS + Lambda in parallel, from in-region
+                          # reports land back in the suite's artillery/logs/
+make capture-anilove RUN=<run-id>   # app_* to disk while Prometheus is still up
 make ecs-down             # or make destroy
 make validate-teardown    # confirm nothing billable survived
 ```
@@ -810,11 +812,14 @@ samples — the metric that benefits most from repetition, since its *n* is the
 number of cold containers rather than the number of requests.
 
 Two things that cycle will bite. The load generator's S3 bucket has
-`force_destroy`, so **each destroy deletes the previous repetition's reports**:
-run `make loadgen-sync` before tearing down, and `make validate-teardown`, which
-refuses to pass quietly while the bucket still holds objects. And a destroy that
-half-fails leaves instances billing while `terraform state list` looks clean, so
-confirm each teardown against AWS rather than against state.
+`force_destroy`, so **each destroy deletes whatever is still only in S3**.
+`make loadgen-<suite>` downloads its six artifacts before it exits, so a run
+that completed is already on disk; a run whose download failed is not, and
+`make loadgen-sync` will not save it — that command stages suites *onto* the
+generator. Confirm with `make validate-teardown`, which refuses to pass quietly
+while the bucket still holds objects. And a destroy that half-fails leaves
+instances billing while `terraform state list` looks clean, so confirm each
+teardown against AWS rather than against state.
 
 Aggregate as **median and IQR across runs, not mean and standard deviation**:
 latency distributions are right-skewed and normality cannot be demonstrated at
