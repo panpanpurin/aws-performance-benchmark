@@ -98,10 +98,17 @@ Logs: `artillery/logs/` under each suite.
 
 1. Open the suite Grafana URL (table above).
 2. Set the time range to the parallel run duration.
-3. Split series by `instance` (`ec2` / `ecs` / `lambda`).
+3. Split series by `service` (`app-instrumented-ec2` / `-ecs` / `-lambda`), which
+   the shipped panels use. `instance` (`ec2` / `ecs` / `lambda`) carries the same
+   split; `prometheus.yml` sets both on every job.
 4. Import `grafana/dashboard.json` if needed.
 
 Login (AWS suites): `admin` / `123`.
+
+Panels use a `[2m]` rate window, sized to the schedule. Phases run 120, 150, 150,
+480 and 150 s, so the window fits inside each probe and resolves it separately
+from its neighbours. It also holds four samples on the Lambda job, which scrapes
+at 30 s against 5 s elsewhere. Keep any change to it within the shortest phase.
 
 ## All suites at once
 
