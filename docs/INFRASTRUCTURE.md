@@ -65,7 +65,7 @@ flowchart TB
       ALB["Application Load Balancer<br/>HTTPS 443, port 80 redirects"]
     end
 
-    subgraph PRIV["Private subnets, single AZ"]
+    subgraph PRIV[" "]
       EC2["3x EC2 c6i.large<br/>one per app<br/>container capped at 1 vCPU / 1024 MiB"]
       ECS["ECS cluster, 3 services<br/>task cpu 1024, memory 1024<br/>awsvpc on a c6i.large ASG"]
       LAM["3x Lambda<br/>1769 MB, reserved concurrency 1<br/>container image"]
@@ -85,6 +85,9 @@ flowchart TB
   style PRIV fill:#e8f0fe,stroke:#5b8def,color:#102a43
   style PUB fill:#f2f6ec,stroke:#8fae6a,color:#102a43
 ```
+
+The blue block is the private subnet, in the single availability zone
+`pin_compute_az` selects; the green one holds the public subnets across 3 AZs.
 
 Hostnames are `<label>-<platform>.<domain>` for labels `anilove`, `csv` and
 `thumb`. CSV and Thumbnail are stateless and never reach RDS.
