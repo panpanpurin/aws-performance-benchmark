@@ -42,8 +42,9 @@ make local-test           # Artillery vs localhost
 make local-down
 ```
 
-Default AWS region: **ap-northeast-1** (Tokyo). A full AWS session costs about
-US$ 7 and takes ~8 hours including teardown — see [docs/COSTS.md](./docs/COSTS.md).
+Default AWS region: **ap-northeast-1** (Tokyo). Each suite runs a 17.5 minute
+schedule, but a full AWS session costs about US$ 10 and takes ~8 hours including
+setup and teardown — see [docs/COSTS.md](./docs/COSTS.md).
 
 ```bash
 make check                                          # tools + credentials
@@ -57,7 +58,7 @@ make validate-aws                                   # every target healthy
 make validate-fairness                              # only the compute model varies
 make bench-anilove                                  # Prometheus + Grafana
 make metrics-proxy                                  # HTTP-only stacks; no-op with a domain
-make validate-bench                                 # before a 30+ minute run
+make validate-bench                                 # before the 17.5 minute run
 make artillery-anilove                              # EC2 + ECS + Lambda in parallel
 make destroy                                        # or make ecs-down
 ```

@@ -34,7 +34,7 @@ make validate-aws       # every target healthy, not just one
 make validate-fairness  # only the compute model varies
 make bench-anilove
 make metrics-proxy      # HTTP-only stacks; no-op with a domain
-make validate-bench     # before the 30+ minute run
+make validate-bench     # before the 17.5 minute run
 make artillery-anilove
 make ecs-down           # or make destroy when done
 ```

@@ -695,15 +695,15 @@ make validate-aws         # every target healthy, not just one
 make validate-fairness    # metric names, CPU pins, deployed specs
 make bench-anilove        # Prometheus + Grafana; also bench-csv, bench-thumbnail
                           # metrics-proxy not needed: the ALB hostnames resolve
-make validate-bench       # config check before a 30+ minute run
+make validate-bench       # config check before the 17.5 minute run
 make artillery-anilove    # EC2 + ECS + Lambda in parallel
 make loadgen-sync         # pull the reports down - destroy deletes the bucket
 make ecs-down             # or make destroy
 make validate-teardown    # confirm nothing billable survived
 ```
 
-A full session costs roughly US$ 7 and takes about 8 hours including setup and
-teardown. See [COSTS.md](./COSTS.md).
+A full session costs roughly US$ 10 and takes about 8 hours including setup and
+teardown, of which only 52.5 minutes is load. See [COSTS.md](./COSTS.md).
 
 ### Build reproducibility
 

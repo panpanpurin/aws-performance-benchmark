@@ -164,10 +164,11 @@ Three problems with the previous setup:
    launches as `unlimited` and keeps bursting, billing the surplus. Under a
    sustained load phase, EC2 would collapse while ECS carried on — a
    difference produced by the credit mode, not by EC2 versus ECS.
-2. **Credit balance carries across runs.** A 32-minute run at high CPU on
-   `t2.micro` burns roughly 25 credits while earning 3, and the balance refills
+2. **Credit balance carries across runs.** A 17.5-minute run at high CPU on
+   `t2.micro` burns roughly 14 credits while earning 2, and the balance refills
    at 6 per hour. Repeated runs on the same instance therefore measure a
-   degrading system rather than repeated samples of the same one.
+   degrading system rather than repeated samples of the same one, and this
+   campaign takes 13 repetitions per workload.
 3. **The container was not capped.** `docker run` had no `--cpus`/`--memory`,
    so the EC2 app received the entire instance while the ECS task was limited
    by its task definition. This happened to be equivalent only because
