@@ -26,6 +26,7 @@ load balancer, one certificate and one shared database, reached on a hostname
 that selects the target group:
 
 ```mermaid
+%%{init: {"flowchart": {"rankSpacing": 95, "nodeSpacing": 55, "subGraphTitleMargin": {"top": 8, "bottom": 18}}}}%%
 flowchart TB
   CLIENT["Load generator"]
   R53["Route 53<br/>9 alias records"]
@@ -52,6 +53,9 @@ flowchart TB
   EC2 -- "AniLove only" --> RDS
   ECS -- "AniLove only" --> RDS
   LAM -- "AniLove only" --> RDS
+
+  style PRIV fill:#e8f0fe,stroke:#5b8def,color:#102a43
+  style PUB fill:#f2f6ec,stroke:#8fae6a,color:#102a43
 ```
 
 How load and metrics reach these, including the in-region generator and the
