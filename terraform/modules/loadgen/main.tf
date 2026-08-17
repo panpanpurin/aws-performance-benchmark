@@ -112,6 +112,7 @@ resource "aws_instance" "loadgen" {
 
   user_data = base64encode(templatefile("${path.module}/user_data.sh.tftpl", {
     artillery_version = var.artillery_version
+    form_data_version = var.form_data_version
     bucket            = aws_s3_bucket.artifacts.bucket
     aws_region        = var.aws_region
   }))

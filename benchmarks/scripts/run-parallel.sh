@@ -94,10 +94,12 @@ cd "$ART_DIR"
 
 # form-data is declared in a package.json next to the processors but nothing
 # installs it; without it all three die at processor.js with MODULE_NOT_FOUND.
+# npm ci, not install: it builds the multipart request body, so its version is
+# an input to the measurement. The generator pins it too, via form_data_version.
 if [[ -f package.json && ! -d node_modules ]]; then
   echo "Installing Artillery helper dependencies for $SUITE ..."
-  npm install --no-audit --no-fund --loglevel=error || {
-    echo "ERROR: npm install failed in $ART_DIR" >&2
+  npm ci --no-audit --no-fund --loglevel=error || {
+    echo "ERROR: npm ci failed in $ART_DIR" >&2
     exit 1
   }
 fi

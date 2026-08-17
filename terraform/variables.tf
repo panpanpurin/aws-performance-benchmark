@@ -330,6 +330,12 @@ variable "artillery_version" {
   default     = "2.0.23"
 }
 
+variable "form_data_version" {
+  type        = string
+  description = "form-data version on the load generator. The CSV and Thumbnail processors resolve it from the global install through NODE_PATH and use it to build the multipart request body, so it is an input to the measurement rather than tooling. Kept equal to the version the suite lockfiles pin."
+  default     = "4.0.6"
+}
+
 # EC2 took a subnet by application index, the ECS ASG spanned every private
 # subnet, and RDS took whichever zone AWS picked, so an app's EC2 instance could
 # sit in a different zone from the database while its ECS task did not, paying a

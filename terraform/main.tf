@@ -276,6 +276,7 @@ module "loadgen" {
   ami_id            = local.ec2_ami_id
   instance_type     = var.loadgen_instance_type
   artillery_version = var.artillery_version
+  form_data_version = var.form_data_version
   tags              = local.tags
 }
 

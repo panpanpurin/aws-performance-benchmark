@@ -13,7 +13,9 @@ node -v
 NPM=/usr/bin/npm-20
 
 
-"$NPM" install -g artillery@${artillery_version} form-data
+# Both pinned: the processors resolve form-data from this global install via
+# NODE_PATH, so its version is part of what the run measures.
+"$NPM" install -g artillery@${artillery_version} form-data@${form_data_version}
 
 echo "export NODE_PATH=$("$NPM" root -g)" > /etc/profile.d/nodepath.sh
 chmod 0644 /etc/profile.d/nodepath.sh

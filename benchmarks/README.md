@@ -64,8 +64,8 @@ make bench-anilove bench-csv bench-thumbnail
 CSV and Thumbnail Artillery need `form-data` once:
 
 ```bash
-cd suites/csv-processor/artillery && npm install
-cd suites/thumbnail-generator/artillery && npm install
+cd suites/csv-processor/artillery && npm ci
+cd suites/thumbnail-generator/artillery && npm ci
 ```
 
 Artillery CLI: `npx artillery@2.0.23` (no global install).

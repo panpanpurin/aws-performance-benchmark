@@ -40,6 +40,12 @@ variable "artillery_version" {
   default     = "2.0.23"
 }
 
+variable "form_data_version" {
+  type        = string
+  description = "form-data builds the multipart body for the CSV and Thumbnail requests, so its version is an input to the measurement. Unpinned, a generator rebuilt between repetitions would pick up whatever npm resolves that day."
+  default     = "4.0.6"
+}
+
 variable "tags" {
   type        = map(string)
   default     = {}

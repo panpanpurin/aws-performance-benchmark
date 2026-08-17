@@ -45,9 +45,13 @@ make artillery-anilove
 | CSV / Thumbnail | `form-data` required by request processors |
 
 ```bash
-cd csv-processor/artillery && npm install
-cd thumbnail-generator/artillery && npm install
+cd csv-processor/artillery && npm ci
+cd thumbnail-generator/artillery && npm ci
 ```
+
+`npm ci`, not `npm install`: `form-data` builds the multipart request body, so
+its version is an input to the measurement. `run-parallel.sh` does this for you.
+The in-region generator installs it globally, pinned by `form_data_version`.
 
 Artillery CLI: `npx artillery@2.0.23` (no global install).
 
