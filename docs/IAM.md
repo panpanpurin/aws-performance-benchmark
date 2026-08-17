@@ -50,9 +50,12 @@ Created with the ECS module: ECS agent and SSM on capacity hosts.
 
 | App | Permissions |
 |-----|-------------|
-| All | CloudWatch Logs |
-| AniLove | Secrets + VPC ENI (private RDS) |
-| CSV / Thumbnail | Logs only |
+| All | CloudWatch Logs + VPC ENI (`AWSLambdaVPCAccessExecutionRole`) |
+| AniLove | The above, plus Secrets Manager for the RDS credentials |
+
+All three functions are attached to the private subnets, not only the one that
+reaches RDS, so network placement does not vary between workloads. That is why
+the VPC access policy is on every Lambda role and not just AniLove's.
 
 ## Secrets
 

@@ -26,6 +26,7 @@ AWS stack for the three app EC2 / ECS / Lambda benchmark.
 | EC2 apps | `modules/ec2_apps` (`enable_ec2`) |
 | ECS cluster + services | `modules/ecs_cluster` (`enable_ecs`) |
 | Lambda + Function URLs | `modules/lambda_apps` (`enable_lambda`) |
+| In-region Artillery host + results bucket | `modules/loadgen` (`enable_loadgen`) |
 | Remote state | `bootstrap/` |
 | Pins | AMI (var or SSM), image digests/tags, TLS policy, sizes |
 | Tags | `providers.tf` `default_tags`, `locals.tags` |
@@ -33,7 +34,10 @@ AWS stack for the three app EC2 / ECS / Lambda benchmark.
 
 **Not** managed here: Docker builds, Artillery, Grafana under `local/` and `benchmarks/`.
 
-Instance sizes stay on the current defaults (burstable) until the stack is fully wired.
+Instance sizes default to non-burstable `c6i.large` for EC2 and ECS and
+`db.m6g.large` for RDS. That is a deliberate choice, not a placeholder: CPU
+credits would otherwise vary between platforms and carry across repetitions. See
+[docs/INFRASTRUCTURE.md](../docs/INFRASTRUCTURE.md#instance-type-choice-why-not-burstable).
 
 ## Makefile (from repo root)
 
@@ -42,6 +46,7 @@ Instance sizes stay on the current defaults (burstable) until the stack is fully
 | `make init` | `terraform init` in `terraform/` |
 | `make plan` | `terraform plan` |
 | `make apply` | `terraform apply` (interactive confirm) |
+| `make apply NONCE=rep2` | Same, but replaces the EC2 instances, ECS hosts and tasks, and Lambda execution environments, so the next repetition starts on fresh compute and contributes new cold-start samples |
 | `make destroy` | Destroy **main stack** with `-auto-approve` |
 | `make validate-teardown` | Verify against AWS that nothing billable survived |
 | `make output` | `terraform output` |
@@ -136,6 +141,8 @@ Runtime: EC2 instance profile, ECS execution + task (+ container instance), Lamb
 | `ecr_repository_urls` | `docker push` |
 | `rds_address` | AniLove DB host |
 | `benchmark_targets_file` | `generated/benchmark-targets.json` |
+| `loadgen_instance_id` | SSM target for `make loadgen-sync` and `make loadgen-*` |
+| `loadgen_bucket` | Where the generator uploads its Artillery reports |
 
 Fill:
 

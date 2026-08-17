@@ -26,7 +26,7 @@ Same VPC for all components so differences come from the compute model (EC2, ECS
 | Component | Configuration |
 |-----------|----------------|
 | VPC | Single VPC for EC2, ECS, **all three Lambda functions**, and RDS |
-| Availability | Three AZs for ALB and ECS capacity |
+| Availability | Three AZs of subnets, so the ALB has the two it requires. Compute does **not** spread across them: `pin_compute_az = true` places EC2, ECS, Lambda and RDS in the single zone `benchmark_az_index` selects, so inter-AZ latency is not a variable between platforms |
 | ALB | One internet facing ALB, IPv4 |
 | TLS on ALB | One ACM certificate (DNS validation), one TLS policy on HTTPS 443 |
 | HTTP | Listener on 80; redirects to HTTPS when a certificate is set |
@@ -239,7 +239,7 @@ types are configured and fails if `cpu_credits` is left unset.
 |-----------|-----------------|
 | EC2 | `c6i.large`, container capped at 1 vCPU / 1024 MiB; shared ALB |
 | ECS | One cluster; task 1024 CPU / 1024 MiB; same ALB |
-| Lambda | 1769 MB (one full vCPU); Function URL |
+| Lambda | 1769 MB (one full vCPU), reserved concurrency 1; same ALB |
 | TLS | One ACM cert + TLS policy on ALB (when domain set) |
 | RDS | One `db.m6g.large`; schemas `ec2` / `ecs` / `lambda` |
 
@@ -295,7 +295,7 @@ Terraform does not build images or run Artillery.
 | Dual images | `apps/*/Dockerfile`, `Dockerfile.lambda` |
 | Shared DB + schemas | `DB_SCHEMA`, TLS defaults |
 | Stateless CSV / Thumbnail | No DB env |
-| HTTPS | ALB + ACM (EC2/ECS); Function URL (Lambda) |
+| HTTPS | One ALB + ACM for all three platforms; Function URL kept for scrapes |
 | About 1 vCPU profile | EC2 / task / Lambda sizing; thread pins on CSV and thumbnail |
 
 ## Non goals
@@ -303,4 +303,7 @@ Terraform does not build images or run Artillery.
 - Multi AZ RDS
 - Separate ALB or ECS cluster per app
 - Three RDS instances
-- Lambda behind the ALB
+- A separate entrypoint per platform. Lambda is an ALB target like EC2 and ECS
+  (`lambda_behind_alb = true`); the Function URL stays published only so
+  Prometheus can scrape `/metrics` without competing for a concurrency slot on
+  the measured path.

@@ -88,7 +88,9 @@ SERVICE_NAME=anilove
 
 ECS: `DB_SCHEMA=ecs`. Lambda: `DB_SCHEMA=lambda`.
 
-Edge: one ALB for EC2 and ECS; Lambda uses Function URL HTTPS only.
+Edge: one ALB for all three platforms (`lambda_behind_alb = true`), so EC2, ECS
+and Lambda share the same listener and request path. The Function URLs stay
+published as a second, unmeasured entrypoint for the Prometheus scrape.
 
 ### CSV Processor
 

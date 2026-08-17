@@ -3,9 +3,9 @@
 What this stack costs to run in **ap-northeast-1 (Tokyo)**, and which parts
 dominate the bill.
 
-Summary: a full benchmark sweep across all three suites consumes about **$0.39**
-of Lambda compute, and one apply-measure-destroy session costs about **$8.87**.
-Leaving the same stack running for a month would cost about **$734**, because
+Summary: a full benchmark sweep across all three suites consumes about **$0.04**
+of Lambda compute, and one apply-measure-destroy session costs about **$10.33**.
+Leaving the same stack running for a month would cost about **$896**, because
 non-burstable instances bill by the hour whether or not a test is running. The
 stack is designed to be applied, measured, and destroyed.
 
@@ -36,6 +36,7 @@ aws pricing get-products --region us-east-1 --service-code AmazonEC2 \
 | Resource | Unit price (Tokyo) |
 |----------|--------------------|
 | EC2 `c6i.large` (non-burstable) | $0.1070 / hour |
+| EC2 `c6i.xlarge` (load generator) | $0.2140 / hour |
 | EC2 `t2.micro` / `t3.small` (burstable, no longer used) | $0.0152 / $0.0272 per hour |
 | EBS `gp3` | $0.096 / GB-month |
 | NAT gateway | $0.062 / hour + $0.062 / GB processed |
@@ -52,6 +53,9 @@ aws pricing get-products --region us-east-1 --service-code AmazonEC2 \
 
 Prices change. Re-run the commands rather than trusting this table.
 
+`c6i.xlarge` is the one derived figure: on-demand pricing is linear in size
+within a family, so it is exactly twice `c6i.large`.
+
 ## What the stack contains
 
 From `terraform/`, with the committed `terraform.tfvars`:
@@ -67,6 +71,10 @@ From `terraform/`, with the committed `terraform.tfvars`:
 - 1 RDS `db.m6g.large` (non-burstable), 20 GB gp3, Single-AZ, no backup
   retention, Performance Insights on the free 7-day tier
 - 3 Lambda functions, 1769 MB (one full vCPU), container image, Function URLs
+- 1 load generator (`c6i.xlarge`, public subnet, 20 GB gp3) plus an S3 bucket for
+  its reports, from `enable_loadgen = true`. It is in-region because a
+  workstation uplink cannot supply the measured phase rates, and a saturated
+  generator degrades all three platforms unevenly rather than failing cleanly
 - 6 ECR images (3 apps x EC2/ECS + Lambda variants), 2 secrets, 9 log groups
 
 Both EC2 apps and ECS container instances sit in **private** subnets, so all
@@ -86,25 +94,29 @@ uses 3, the state an actual benchmark runs in.
 | Line item | Calculation | $/month |
 |-----------|-------------|---------|
 | ECS instances, 3x `c6i.large` | 3 x 730 x $0.1070 | 234.33 |
-| NAT gateway hours | 730 x $0.062 | 45.26 |
 | EC2 apps, 3x `c6i.large` | 3 x 730 x $0.1070 | 234.33 |
-| RDS instance | 730 x $0.025 | 18.25 |
+| RDS instance `db.m6g.large` | 730 x $0.221 | 161.33 |
+| Load generator, 1x `c6i.xlarge` | 730 x $0.2140 | 156.22 |
+| NAT gateway hours | 730 x $0.062 | 45.26 |
+| Public IPv4, 3 ALB nodes + 1 NAT + 1 load generator | 5 x 730 x $0.005 | 18.25 |
 | ALB hours | 730 x $0.0243 | 17.74 |
-| Public IPv4, 3 ALB nodes + 1 NAT | 4 x 730 x $0.005 | 14.60 |
 | ECS EBS, 3x 30 GB gp3 | 90 x $0.096 | 8.64 |
 | ALB LCU (assume ~1 average) | 730 x $0.008 | 5.84 |
 | EC2 EBS, 3x 20 GB gp3 | 60 x $0.096 | 5.76 |
 | RDS storage | 20 x $0.138 | 2.76 |
+| Load generator EBS, 20 GB gp3 | 20 x $0.096 | 1.92 |
 | CloudWatch Logs (assume ~2 GB) | 2 x $0.76 | 1.52 |
 | Secrets Manager, 2 secrets | 2 x $0.40 | 0.80 |
 | NAT data processing (assume ~10 GB) | 10 x $0.062 | 0.62 |
 | ECR storage (assume ~2.5 GB) | 2.5 x $0.10 | 0.25 |
 | S3 + DynamoDB state backend | negligible | 0.10 |
 | Lambda | idle, no invocations | 0.00 |
-| **Total** | | **≈ 590.80** |
+| **Total** | | **≈ 895.67** |
 
-Compute alone (EC2 apps plus ECS instances) is 79% of the bill. Non-burstable
-instances are what make an always-on stack expensive; see Scenario C.
+Instance hours — the six app hosts plus the load generator — are 70% of the
+bill, and the non-burstable database another 18%. Hourly billing on hardware
+that is idle between runs is what makes an always-on stack expensive; see
+Scenario C.
 
 Rows marked "assume" depend on how much you actually run; the rest are fixed
 by the stack's shape.
@@ -115,13 +127,14 @@ by the stack's shape.
 
 | | $/month |
 |---|---|
-| Scenario A | 590.80 |
+| Scenario A | 895.67 |
 | less ECS instances | -234.33 |
 | less ECS EBS | -8.64 |
-| **Total** | **≈ 347.83** |
+| **Total** | **≈ 652.70** |
 
-Everything else continues billing. Scaling ECS down removes under a third of
-the monthly cost; the NAT gateway, ALB, EC2 instances, and RDS are unaffected.
+Everything else continues billing. Scaling ECS down removes just over a quarter
+of the monthly cost; the NAT gateway, ALB, EC2 instances, RDS, and the load
+generator are unaffected.
 
 ## Scenario C: apply, measure, destroy
 
@@ -130,23 +143,30 @@ The intended lifecycle. Hourly burn with the full stack up:
 | Component | $/hour |
 |-----------|--------|
 | ECS, 3x `c6i.large` | 0.3210 |
-| NAT gateway | 0.0620 |
 | EC2 apps, 3x `c6i.large` | 0.3210 |
 | RDS `db.m6g.large` | 0.2210 |
+| Load generator, `c6i.xlarge` | 0.2140 |
+| NAT gateway | 0.0620 |
+| Public IPv4, 5 addresses | 0.0250 |
 | ALB | 0.0243 |
-| Public IPv4, 4 addresses | 0.0200 |
-| EBS, 150 GB gp3 amortised | 0.0197 |
-| **Total** | **≈ 0.9890** |
+| EBS, 170 GB gp3 amortised | 0.0224 |
+| **Total** | **≈ 1.2107** |
 
-A full session (apply, push images, three 32-minute suites, teardown) is
-roughly 8 hours of uptime:
+A full session (apply, push images, the three suites, teardown) is roughly
+8 hours of uptime:
 
 | | $ |
 |---|---|
-| 8 hours of stack | 7.91 |
-| Lambda, full sweep | 0.36 |
+| 8 hours of stack | 9.69 |
+| Lambda, full sweep | 0.04 |
 | CloudWatch Logs + NAT data | ~0.60 |
-| **Per session** | **≈ 8.87** |
+| **Per session** | **≈ 10.33** |
+
+Only 52.5 minutes of those 8 hours is load: each suite runs a five-phase,
+17.5-minute schedule, and the three can overlap. The rest is `apply`, the image
+build and push, `ecs-up`, the validators, `db-reset` between repetitions,
+`capture-*` before the stack comes down, and the teardown itself — and the
+whole stack bills throughout.
 
 After `make destroy`, only the bootstrap state backend survives, well under
 $0.50/month. `make destroy` also removes the ECR repositories, so the next
@@ -200,21 +220,28 @@ A teardown is complete, not a pause.
 Request volume comes from the Artillery phase definitions in
 `benchmarks/suites/*/artillery/test-lambda.yml`:
 
-| Suite | Duration | Requests per platform | Mean Lambda duration |
-|-------|----------|-----------------------|----------------------|
-| anilove | 33 min | 43,200 | 45 ms (estimate) |
-| csv-processor | 27 min | 20,280 | 35.8 ms (CloudWatch, 2026-08-04) |
-| thumbnail-generator | 33 min | 5,580 | ~143 ms (derived, see PAPER-SSCAD-2026.md) |
-| **Total** | | **69,060** | |
+All three suites now run the same five-phase schedule: 120 + 150 + 150 + 480 +
+150 = 1050 s, so 17.5 minutes per platform. AniLove issues five requests per
+arrival; CSV and Thumbnail one.
 
-At 1769 MB (1.73 GB, one full vCPU):
+| Suite | Arrivals | Requests per platform | Mean Lambda `Duration` |
+|-------|----------|-----------------------|------------------------|
+| anilove | 3,840 | 19,200 | 6.19 ms (pilot 20260810-054832, CloudWatch) |
+| csv-processor | 13,200 | 13,200 | 35.8 ms (CloudWatch, 2026-08-04) |
+| thumbnail-generator | 4,500 | 4,500 | 129.0 ms (pilot 20260808-183300, CloudWatch) |
+| **Total** | | **36,900** | |
 
-- Compute: ~3,400 GB-seconds x $0.0000166667 = **$0.06**
-- Requests: 69,060 x $0.20/million = **$0.01**
+Billing follows CloudWatch `Duration`, not the in-app timer: a concurrency slot
+is held for the whole invocation. At 1769 MB (1.7275 GB, one full vCPU):
 
-**≈ $0.08 per full sweep**, before free tier. Raising Lambda from 1024 MB to
-1769 MB is close to cost-neutral for CPU-bound work: memory rises 1.7x while
-duration falls by roughly the same factor.
+- Compute: 19,200 x 6.19 ms + 13,200 x 35.8 ms + 4,500 x 129.0 ms = 1,172
+  function-seconds, x 1.7275 GB = ~2,024 GB-seconds x $0.0000166667 = **$0.03**
+- Requests: 36,900 x $0.20/million = **$0.01**
+
+**≈ $0.04 per full sweep**, before free tier, so **≈ $0.53** for the whole
+39-run campaign (13 sweeps). Raising Lambda from 1024 MB to 1769 MB is close to
+cost-neutral for CPU-bound work: memory rises 1.7x while duration falls by
+roughly the same factor.
 
 
 Lambda's per-request cost is a negligible share of the total. The fixed cost of
@@ -227,14 +254,23 @@ Ordered by saving:
 1. **Destroy between sessions.** `make destroy` beats every other lever
    combined. The stack reapplies in minutes.
 2. **`make ecs-down` when idle** (-$243/month) if the stack must stay up.
-3. **NAT gateway** (-$46/month). It exists only so private subnets can reach
+3. **`enable_loadgen = false` between campaigns** (-$162/month, instance plus
+   its volume and public IPv4). The generator
+   is only needed while load is running, but it bills like any other instance.
+   Do not switch it off *during* a campaign: a workstation cannot supply the
+   phase rates, and a saturated generator biases all three platforms.
+4. **NAT gateway** (-$46/month). It exists only so private subnets can reach
    ECR and the internet. Setting `enable_nat_gateway = false` breaks image
    pulls unless you add VPC endpoints for ECR, S3, CloudWatch Logs, and
    Secrets Manager. Interface endpoints have their own hourly charge, so the
    saving is partial and only pays off on a long-lived stack.
-4. **Fewer AZs.** `az_count` defaults to 3; an ALB needs 2. Dropping to 2
-   removes one public IPv4 (-$3.65/month) and shrinks the subnet footprint.
-5. **Log retention.** `log_retention_days` is 14. Lower it if you export
+5. **Fewer AZs.** `modules/network` takes `az_count`, default 3; an ALB needs 2.
+   Dropping to 2 removes one public IPv4 (-$3.65/month) and shrinks the subnet
+   footprint. The root stack does not pass this variable through, so lowering it
+   means editing the `module "network"` block in `terraform/main.tf`, not
+   `terraform.tfvars`. Compute placement is unaffected either way:
+   `pin_compute_az` already confines it to one zone.
+6. **Log retention.** `log_retention_days` is 14. Lower it if you export
    results to Grafana anyway.
 
 Do not reduce cost by changing `ec2_instance_type`, `ecs_task_cpu`,
@@ -249,7 +285,7 @@ Free tier is close to irrelevant here. It covers 750 hours of
 uses, since a burstable database would make repeated runs non-comparable),
 1M Lambda requests and
 400,000 GB-seconds per month, but **`c6i.large` is not free-tier eligible**, so
-the largest line item (79% of Scenario A) is billed in full. NAT gateway, ALB
+the largest line item (70% of Scenario A) is billed in full. NAT gateway, ALB
 and public IPv4 addresses are not covered either. Only RDS and part of the
 Lambda usage fall inside the allowance.
 
@@ -285,8 +321,10 @@ Expect `shared` to be the largest slice.
   higher; LCUs bill on the maximum of new connections, active connections,
   processed bytes, and rule evaluations.
 - Public IPv4 charges for ALB nodes scale with AZ count.
-- Data transfer out to the internet is not included. Artillery runs from your
-  machine, so responses leave AWS and are billed above the monthly free
-  allowance.
+- Data transfer is not included. Load runs from the in-region generator, so
+  request and response bodies stay inside ap-northeast-1 and cross no NAT
+  gateway; what leaves AWS is only the report download at the end of a run.
+  Running Artillery from your workstation instead would put every response on
+  the internet egress meter — and could not supply the phase rates anyway.
 - `make destroy` does not remove `terraform/bootstrap/`. That is deliberate,
   and its residual cost is negligible.
