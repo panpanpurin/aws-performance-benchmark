@@ -35,6 +35,7 @@ BASH := $(if $(GIT_BASH),$(GIT_BASH),bash)
 	capture-anilove capture-csv capture-thumbnail \
 	figure-anilove figure-csv figure-thumbnail \
 	figure-split-anilove figure-condition-anilove \
+	paper-figures paper-figures-check \
 	ecs-up ecs-down ecs-status
 
 help:
@@ -75,6 +76,8 @@ help:
 	@echo "  make figure-csv RUN=<run-id>           phase figure as .tex (pgfplots) + .svg"
 	@echo "  make figure-split-anilove              compute / db wait / overhead"
 	@echo "  make figure-condition-anilove          capped vs uncapped; needs aggregate first"
+	@echo "  make paper-figures                     copy generated figures into paper/fig/"
+	@echo "  make paper-figures-check               report drift without copying"
 	@echo ""
 	@echo "Terraform"
 	@echo "  make init|plan|apply|destroy|output"
@@ -237,6 +240,14 @@ capture-csv:
 
 capture-thumbnail:
 	node scripts/capture-app-metrics.js thumbnail-generator $(RUN)
+
+# paper/ is gitignored, so this is the only tracked record of how its figures
+# get there. --check reports drift instead of copying.
+paper-figures:
+	$(BASH) scripts/sync-paper-figures.sh
+
+paper-figures-check:
+	$(BASH) scripts/sync-paper-figures.sh --check
 
 figure-split-anilove:
 	node scripts/make-db-wait-figure.js anilove

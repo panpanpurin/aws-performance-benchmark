@@ -58,6 +58,7 @@ suite's compose stack.
 | `make-figures.js` | Phase time series for one representative run, as `.tex` (pgfplots) + `.svg` |
 | `make-db-wait-figure.js` | AniLove latency split into in-app compute, database wait, and time outside the application |
 | `make-condition-figure.js` | Capped versus uncapped per platform. Reads `per-run.csv`, so run `aggregate-runs.js` first |
+| `sync-paper-figures.sh` | Copy the generated figures into `paper/fig/`, which the paper `\input{}`s. `--check` reports drift and exits non-zero instead of copying. `paper/` is gitignored, so this script is the only tracked record of how those files get there |
 
 `lib.sh` holds shared helpers and is sourced, never executed.
 
@@ -91,6 +92,7 @@ make aggregate-anilove          # median [Q1, Q3] + Friedman, writes per-run.csv
 make figure-anilove RUN=<run-id>
 make figure-split-anilove       # compute / db wait / overhead
 make figure-condition-anilove   # capped vs uncapped; needs per-run.csv
+make paper-figures              # copy them into paper/fig/
 ```
 
 `validate-terraform.sh` and `validate-fairness.sh` skip their AWS checks when no
