@@ -47,25 +47,77 @@ handshake or encryption cost. Sending the three platforms through one entrypoint
 is what keeps the request path identical; the Function URL remains available as
 a second, unmeasured entrypoint for `/metrics`.
 
-### Layer 7 routing (EC2 and ECS)
+### Request path
 
-```text
-Clients (HTTPS)
-       |
-   Route 53
-       |
-       v
-  Single ALB  (HTTPS 443, one ACM cert, one TLS policy)
-       |
- Host based rules
-       |
-  EC2 TGs (per app)     ECS TGs (per app)
-  :3000 / :3001 / :8000
+One entrypoint for all three platforms. A request is routed only by its
+hostname, so the path in front of the application is identical and the compute
+model is the only thing that differs.
 
-Lambda:
-Lambda TGs (per app)  -- same ALB, host-based rules
-(Function URL stays published, used only for /metrics scrapes)
+```mermaid
+flowchart TB
+  CLIENT["Load generator"]
+  R53["Route 53<br/>9 alias records"]
+  ACM["ACM<br/>wildcard *.benchcomp.click"]
+
+  subgraph VPC["VPC, ap-northeast-1"]
+    subgraph PUB["Public subnets, 3 AZs"]
+      ALB["Application Load Balancer<br/>HTTPS 443, port 80 redirects"]
+    end
+
+    subgraph PRIV["Private subnets, one AZ via pin_compute_az"]
+      EC2["3x EC2 c6i.large<br/>one per app<br/>container capped at 1 vCPU / 1024 MiB"]
+      ECS["ECS cluster, 3 services<br/>task cpu 1024, memory 1024<br/>awsvpc on a c6i.large ASG"]
+      LAM["3x Lambda<br/>1769 MB, reserved concurrency 1<br/>container image"]
+      RDS[("RDS PostgreSQL<br/>db.m6g.large<br/>schemas ec2 / ecs / lambda")]
+    end
+  end
+
+  CLIENT --> R53 --> ALB
+  ACM -. terminates TLS .-> ALB
+  ALB -- "target_type instance<br/>:3000 :3001 :8000" --> EC2
+  ALB -- "target_type ip" --> ECS
+  ALB -- "target_type lambda" --> LAM
+  EC2 -- "AniLove only" --> RDS
+  ECS -- "AniLove only" --> RDS
+  LAM -- "AniLove only" --> RDS
 ```
+
+Hostnames are `<label>-<platform>.<domain>` for labels `anilove`, `csv` and
+`thumb`. CSV and Thumbnail are stateless and never reach RDS.
+
+### Measurement path
+
+Load is generated in-region. Metrics arrive from three sources, which is why
+Lambda's numbers come from CloudWatch rather than only from its own `/metrics`.
+
+```mermaid
+flowchart LR
+  subgraph AWS["ap-northeast-1"]
+    LG["Load generator<br/>c6i.xlarge, public subnet<br/>SSM only, no inbound port"]
+    ALB2["ALB"]
+    APPS["EC2 / ECS / Lambda"]
+    FURL["Lambda Function URLs"]
+    S3[("S3<br/>Artillery reports")]
+    CW["CloudWatch<br/>Duration, Init Duration"]
+  end
+
+  subgraph WS["Workstation, Docker Compose"]
+    PGW["3x Pushgateway"]
+    PROM["Prometheus<br/>5 s scrape, 30 s on Lambda"]
+    GRAF["Grafana"]
+  end
+
+  LG -- "3 platforms, one time window" --> ALB2 --> APPS
+  LG -- "upload" --> S3
+  S3 -- "make loadgen-suite downloads" --> PGW
+  CW -- "push-lambda-cloudwatch.js" --> PGW
+  PROM -- "scrape /metrics by hostname" --> ALB2
+  PROM -- "scrape /metrics" --> FURL
+  PGW --> PROM --> GRAF
+```
+
+The Function URLs stay published so the Lambda scrape does not consume a
+concurrency slot on the measured path.
 
 ### Hostnames (examples)
 
