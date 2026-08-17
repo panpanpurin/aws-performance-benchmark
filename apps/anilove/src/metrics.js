@@ -55,10 +55,10 @@ function recordColdStartOnce() {
 }
 
 // ---- Request histograms ----
-// Same edges as the other two apps, so latency is comparable between workloads.
-// The previous set jumped 0.1 -> 0.25, a 150 ms bucket around the expected P95;
-// a quantile is interpolated inside its bucket and the resolution is lost at
-// observation time. Provisional until make pilot-anilove runs.
+// Same edges as csv-processor. Thumbnail is an order of magnitude slower and
+// sets its own; a quantile is interpolated inside its bucket, so the edges have
+// to be dense where the workload actually lands. Calibrated from pilot
+// 20260810-054832: 5 ms to 22 ms across the three platforms.
 const LATENCY_BUCKETS = [
   0.005, 0.0075, 0.01, 0.0125, 0.015, 0.02, 0.025, 0.03, 0.04, 0.05,
   0.07, 0.1, 0.15, 0.2, 0.3, 0.5, 0.75, 1, 2, 5,
