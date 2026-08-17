@@ -21,6 +21,43 @@ runs. Thread pools are pinned inside the apps (`OMP_NUM_THREADS=1`,
 
 Reasoning: [docs/INFRASTRUCTURE.md](./docs/INFRASTRUCTURE.md#instance-type-choice-why-not-burstable).
 
+The same holds in front of the application. All three platforms sit behind one
+load balancer, one certificate and one shared database, reached on a hostname
+that selects the target group:
+
+```mermaid
+flowchart TB
+  CLIENT["Load generator"]
+  R53["Route 53<br/>9 alias records"]
+  ACM["ACM<br/>wildcard *.benchcomp.click"]
+
+  subgraph VPC["VPC, ap-northeast-1"]
+    subgraph PUB["Public subnets, 3 AZs"]
+      ALB["Application Load Balancer<br/>HTTPS 443, port 80 redirects"]
+    end
+
+    subgraph PRIV["Private subnets, one AZ via pin_compute_az"]
+      EC2["3x EC2 c6i.large<br/>one per app<br/>container capped at 1 vCPU / 1024 MiB"]
+      ECS["ECS cluster, 3 services<br/>task cpu 1024, memory 1024<br/>awsvpc on a c6i.large ASG"]
+      LAM["3x Lambda<br/>1769 MB, reserved concurrency 1<br/>container image"]
+      RDS[("RDS PostgreSQL<br/>db.m6g.large<br/>schemas ec2 / ecs / lambda")]
+    end
+  end
+
+  CLIENT --> R53 --> ALB
+  ACM -. terminates TLS .-> ALB
+  ALB -- "target_type instance<br/>:3000 :3001 :8000" --> EC2
+  ALB -- "target_type ip" --> ECS
+  ALB -- "target_type lambda" --> LAM
+  EC2 -- "AniLove only" --> RDS
+  ECS -- "AniLove only" --> RDS
+  LAM -- "AniLove only" --> RDS
+```
+
+How load and metrics reach these, including the in-region generator and the
+three metric sources:
+[docs/INFRASTRUCTURE.md](./docs/INFRASTRUCTURE.md#measurement-path).
+
 ## Prerequisites
 
 - Docker Desktop with Compose **v2.20+** (root and suite stacks use `include`)
