@@ -20,6 +20,7 @@ client.collectDefaultMetrics({
   prefix: 'anilove_',
 });
 
+// Per-request DB time, accumulated by sequelizeLogger. Total minus DB is internal.
 const als = new AsyncLocalStorage();
 
 // cold start: only meaningful on Lambda (first invoke after a new container)
@@ -32,7 +33,7 @@ const COLD_START_BUCKETS = [0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4, 6, 8, 12];
 
 const coldStartDuration = new client.Histogram({
   name: 'app_cold_start_duration_seconds',
-  help: 'Time from runtime init to first handler invocation (cold start)',
+  help: 'Time from this module load to first invocation; diagnostic, use CloudWatch Init Duration',
   labelNames: ['function', 'region', 'memory_mb', 'runtime'],
   buckets: COLD_START_BUCKETS,
 });
@@ -83,7 +84,7 @@ register.registerMetric(internalProcessingDuration);
 // ---- CPU / RAM gauges ----
 const cpuPercentGauge = new client.Gauge({
   name: 'app_cpu_usage_percent',
-  help: 'Estimated per-process CPU usage percent over the last interval',
+  help: 'Per-process CPU percent over the last interval; diagnostic, see app_cpu_seconds_total',
 });
 const cpuPercentPeakGauge = new client.Gauge({
   name: 'app_cpu_peak_percent',
@@ -229,6 +230,7 @@ function requestTimingMiddleware(req, res, next) {
   });
 }
 
+// Sequelize benchmark:true passes query time here. Wired in config/database.js.
 function sequelizeLogger(_sql, timingMs) {
   if (typeof timingMs === 'number') {
     const store = als.getStore();
