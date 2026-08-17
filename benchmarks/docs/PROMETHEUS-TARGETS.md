@@ -7,10 +7,18 @@ only when working without terraform outputs.
 
 | Job type | In repo | Notes |
 |----------|---------|--------|
-| `instrumented-metrics-ec2/-ecs` | metrics-proxy port | With a domain: the ALB hostname plus `scheme: https`. Without one: `host.docker.internal:<proxy port>` |
-| `instrumented-metrics-lambda` | Empty `[]` | Host part of the Function URL, `scheme: https` |
-| `node-exporter-*` | Empty `[]` | Optional EC2/ECS `:9100` |
+| `instrumented-metrics-ec2/-ecs` | `["REPLACE_ME"]` | With a domain: the ALB hostname plus `scheme: https`. Without one: `host.docker.internal:<proxy port>` |
+| `instrumented-metrics-lambda` | `["REPLACE_ME"]` | Host part of the Function URL, `scheme: https` |
 | `artillery-metrics-*` | Filled | Compose service names (`pushgateway-*:9091`) |
+
+The placeholder is a literal `REPLACE_ME`, not an empty list, so a suite that was
+never synced fails its scrape loudly instead of looking idle.
+
+Note that `make validate-bench` will **not** catch it here. It rejects a
+`REPLACE_ME` left in an Artillery `target`, and rejects Prometheus targets that
+are empty, but a Prometheus job still holding the placeholder passes. Run `make
+sync-targets`, then confirm on Prometheus → Status → Targets before a run that
+costs money.
 
 ## Where to get hostnames
 
@@ -41,12 +49,6 @@ Lambda (host only, no `https://`):
 
 ```yaml
 - targets: ['xxxx.lambda-url.ap-northeast-1.on.aws']
-```
-
-Node exporter:
-
-```yaml
-- targets: ['203.0.113.10:9100']
 ```
 
 Reload Prometheus after edits:

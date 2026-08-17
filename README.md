@@ -72,8 +72,9 @@ failing cleanly. `make artillery-anilove` runs the same suite from here and is
 for local work and pilots. See
 [docs/PARALLEL-BENCHMARK.md](./docs/PARALLEL-BENCHMARK.md).
 
-The repository ships Artillery `target` as `https://REPLACE_ME` and empty
-Prometheus scrape targets on purpose, so no live endpoint is published.
+The repository ships Artillery `target` as `https://REPLACE_ME` and the same
+placeholder in the Prometheus app jobs on purpose, so no live endpoint is
+published.
 `make sync-targets` fills both from Terraform outputs; see
 [PROMETHEUS-TARGETS.md](./benchmarks/docs/PROMETHEUS-TARGETS.md) to fill them by
 hand.
@@ -87,6 +88,8 @@ hand.
 | Scripts / automation | [scripts/README.md](./scripts/README.md) |
 | AWS load + charts (one suite) | `make bench-anilove` then `make loadgen-anilove` |
 | All three suites together | `make bench-anilove bench-csv bench-thumbnail` |
+| Calibrate phases before a campaign | `make pilot-anilove` (~7 min probe), then `make pilot-configs` |
+| Reduce a campaign to numbers and figures | [Analysis](#analysis) |
 | Workload bounds | [docs/WORKLOADS.md](./docs/WORKLOADS.md) |
 | Infrastructure design | [docs/INFRASTRUCTURE.md](./docs/INFRASTRUCTURE.md) |
 | What a run costs | [docs/COSTS.md](./docs/COSTS.md) |
@@ -99,7 +102,7 @@ hand.
 
 ## Validation
 
-Four read-only checks, each wired to a `make` target. They exist because the
+Five read-only checks, each wired to a `make` target. They exist because the
 failure modes here are silent: a run completes and the dashboards render even
 when the configuration invalidates the comparison.
 
@@ -109,8 +112,28 @@ when the configuration invalidates the comparison.
 | `make validate-bench` | Artillery targets and Host headers, pushgateway ports, Prometheus jobs, compose ports |
 | `make validate-aws` | Target-group health, ECS counts, EC2 status checks, Lambda state, RDS |
 | `make validate-fairness` | Shared metric names, thread pins, worker counts, deployed specs, live `/metrics` |
+| `make validate-teardown` | Asks AWS, not Terraform, whether anything billable survived a destroy |
 
 `make validate` runs the two that need no AWS credentials.
+
+## Analysis
+
+A run produces client-side Artillery reports and server-side Prometheus series.
+Prometheus lives in the suite's compose stack and dies with it, so **capture
+before tearing anything down**.
+
+| Target | Produces |
+|--------|----------|
+| `make capture-anilove RUN=<run-id>` | `app-metrics-<run-id>.json` — the `app_*` means for that window |
+| `make aggregate-anilove` | `per-run.csv`, then median [Q1, Q3] and a Friedman test across repetitions |
+| `make figure-anilove RUN=<run-id>` | Phase time series as `.tex` (pgfplots) and `.svg` |
+| `make figure-split-anilove` | Latency split into compute, database wait, and overhead |
+| `make figure-condition-anilove` | Capped versus uncapped; reads `per-run.csv`, so aggregate first |
+
+`-csv` and `-thumbnail` variants exist for `capture`, `aggregate` and `figure`.
+The split and condition figures are AniLove-only: one needs a database wait, the
+other Experiment B. Why the test is Friedman and not ANOVA, and why medians
+rather than means: [docs/PAPER-SSCAD-2026.md](./docs/PAPER-SSCAD-2026.md).
 
 ## Repository layout
 
@@ -169,7 +192,7 @@ Details: [docs/WORKLOADS.md](./docs/WORKLOADS.md).
 | [benchmarks/suites/csv-processor](./benchmarks/suites/csv-processor) | CSV suite |
 | [benchmarks/suites/thumbnail-generator](./benchmarks/suites/thumbnail-generator) | Thumbnail suite |
 | [benchmarks/docs/PORTS.md](./benchmarks/docs/PORTS.md) | Host ports for concurrent suites |
-| [benchmarks/docs/PROMETHEUS-TARGETS.md](./benchmarks/docs/PROMETHEUS-TARGETS.md) | Empty scrape targets to fill later |
+| [benchmarks/docs/PROMETHEUS-TARGETS.md](./benchmarks/docs/PROMETHEUS-TARGETS.md) | Placeholder scrape targets to fill later |
 | [benchmarks/docs/ARTILLERY-TARGETS.md](./benchmarks/docs/ARTILLERY-TARGETS.md) | Artillery base URLs |
 
 | Suite | Prometheus | Grafana | Pushgateways (ECS / EC2 / Lambda) |

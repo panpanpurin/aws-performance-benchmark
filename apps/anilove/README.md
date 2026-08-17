@@ -122,5 +122,19 @@ Lambda detects `AWS_LAMBDA_FUNCTION_NAME` / `LAMBDA_TASK_ROOT` and records cold 
 |--------|--------|
 | `app_total_execution_time_seconds` | Full `/animes` request |
 | `app_internal_processing_time_seconds` | Total minus DB time |
-| `app_cpu_usage_percent` / `app_ram_usage_mb` | Process gauges |
-| `app_cold_start_duration_seconds` | Lambda only |
+| `app_cpu_seconds_total` | Divide by requests for CPU cost per request |
+| `app_ram_usage_mb` / `app_ram_peak_mb` | Process gauges |
+| `app_cpu_usage_percent` | **Exported, do not publish.** See below |
+| `app_cold_start_duration_seconds` | **Exported, do not publish.** See below |
+
+Two of these are instrumentation that did not survive contact with Lambda, kept
+only so the series is continuous across platforms:
+
+- `app_cpu_usage_percent` is CPU seconds per wall second, which is meaningless
+  for a sandbox frozen between invocations. It is diluted toward zero on Lambda
+  and reports it as the cheapest platform, purely as an artefact. Report
+  `app_cpu_seconds_total` divided by requests instead.
+- `app_cold_start_duration_seconds` starts its clock when `metrics.js` is
+  required, so it misses the runtime bootstrap and every earlier `require`. It
+  read 135 ms to 238,453 ms across containers whose real `Init Duration` was a
+  tight 802–1065 ms. Cold start comes from CloudWatch Logs.

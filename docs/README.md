@@ -8,6 +8,9 @@
 4. [DEPLOY.md](./DEPLOY.md): images, env vars, metrics wiring
 5. [PARALLEL-BENCHMARK.md](./PARALLEL-BENCHMARK.md): Artillery for side by side charts
 6. [COSTS.md](./COSTS.md): what a run costs before you apply anything
+7. [PAPER-SSCAD-2026.md](./PAPER-SSCAD-2026.md): what to measure, how to
+   aggregate it, and how many repetitions it takes. Read this before a campaign,
+   not after — it is what the analysis targets under `scripts/` implement
 
 ## In this folder
 
@@ -31,5 +34,6 @@
 | [../benchmarks/docs/PORTS.md](../benchmarks/docs/PORTS.md) | Host ports for concurrent suites |
 | [../benchmarks/docs/PROMETHEUS-TARGETS.md](../benchmarks/docs/PROMETHEUS-TARGETS.md) | Fill empty scrape targets |
 | [../benchmarks/docs/ARTILLERY-TARGETS.md](../benchmarks/docs/ARTILLERY-TARGETS.md) | Set Artillery `target` URLs |
+| [../scripts/README.md](../scripts/README.md) | Every automation script, grouped by phase of a run |
 | [../apps/](../apps/) | Application source |
 | [../Makefile](../Makefile) | `make help` |

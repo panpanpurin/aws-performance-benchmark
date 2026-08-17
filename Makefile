@@ -32,7 +32,9 @@ BASH := $(if $(GIT_BASH),$(GIT_BASH),bash)
 	lock-deps \
 	metrics-proxy sync-targets health \
 	aggregate-anilove aggregate-csv aggregate-thumbnail \
+	capture-anilove capture-csv capture-thumbnail \
 	figure-anilove figure-csv figure-thumbnail \
+	figure-split-anilove figure-condition-anilove \
 	ecs-up ecs-down ecs-status
 
 help:
@@ -44,6 +46,7 @@ help:
 	@echo "  make validate-bench    artillery + prometheus + compose config"
 	@echo "  make validate-aws      post-apply: targets healthy, services, RDS, Lambda"
 	@echo "  make validate-fairness only-compute-varies: metrics, pins, deployed specs"
+	@echo "  make validate-teardown post-destroy: ask AWS if anything billable survived"
 	@echo "  make db-reset          truncate + reseed the anilove schemas (before each repetition)"
 	@echo "  make db-count          rows left per schema, changes nothing"
 	@echo "  make health            ALB + Lambda /health"
@@ -67,8 +70,11 @@ help:
 	@echo "  make loadgen-csv|anilove|thumbnail"
 	@echo ""
 	@echo "Analysis"
+	@echo "  make capture-csv RUN=<run-id>          app_* to disk BEFORE bench-down or destroy"
 	@echo "  make aggregate-csv|anilove|thumbnail   median [Q1,Q3] across repetitions + per-run.csv"
 	@echo "  make figure-csv RUN=<run-id>           phase figure as .tex (pgfplots) + .svg"
+	@echo "  make figure-split-anilove              compute / db wait / overhead"
+	@echo "  make figure-condition-anilove          capped vs uncapped; needs aggregate first"
 	@echo ""
 	@echo "Terraform"
 	@echo "  make init|plan|apply|destroy|output"

@@ -27,7 +27,7 @@ Each suite:
 3. Maps suite host ports ([PORTS.md](./docs/PORTS.md))
 4. Mounts its own `prometheus.yml`
 
-App scrape targets start empty ([PROMETHEUS-TARGETS.md](./docs/PROMETHEUS-TARGETS.md)).
+App scrape targets ship as `REPLACE_ME` ([PROMETHEUS-TARGETS.md](./docs/PROMETHEUS-TARGETS.md)).
 
 Artillery `target` starts as `https://REPLACE_ME` ([ARTILLERY-TARGETS.md](./docs/ARTILLERY-TARGETS.md)).
 

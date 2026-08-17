@@ -160,7 +160,7 @@ docker run -d -p 3001:3001 thumbnail-generator:ec2-ecs
 | Prometheus targets | [PROMETHEUS-TARGETS.md](../benchmarks/docs/PROMETHEUS-TARGETS.md) |
 | Artillery targets | [ARTILLERY-TARGETS.md](../benchmarks/docs/ARTILLERY-TARGETS.md) |
 
-App and node exporter scrape targets start empty. Pushgateway jobs use Compose service names.
+App scrape targets ship as `REPLACE_ME` and are filled by `make sync-targets`. Pushgateway jobs use Compose service names.
 
 | Workload | Suite | Artillery `service` label |
 |----------|-------|---------------------------|
