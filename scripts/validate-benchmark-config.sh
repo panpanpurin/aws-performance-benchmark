@@ -218,6 +218,9 @@ for suite in "${SUITES[@]}"; do
   # -- Prometheus scrape config --
   prom="$sdir/prometheus.yml"
   found_jobs=""
+  prom_scrape_ec2=""
+  prom_scrape_ecs=""
+  prom_scrape_lambda=""
   prom_before="$VALIDATE_FAILED"
   while IFS='|' read -r job tgt inst; do
     [[ -n "$job" ]] || continue
@@ -227,6 +230,17 @@ for suite in "${SUITES[@]}"; do
       fail "prometheus.yml job '$job' has empty targets - fill per benchmarks/docs/PROMETHEUS-TARGETS.md"
       continue
     fi
+    # A placeholder scrapes nothing and the run yields no app_* series, which is
+    # only visible once the stack is gone. The Artillery targets get the same check.
+    if [[ "$norm" == *REPLACE_ME* ]]; then
+      fail "prometheus.yml job '$job' is still the REPLACE_ME placeholder - run: make sync-targets"
+      continue
+    fi
+    case "$job" in
+      instrumented-metrics-ec2) prom_scrape_ec2="$norm" ;;
+      instrumented-metrics-ecs) prom_scrape_ecs="$norm" ;;
+      instrumented-metrics-lambda) prom_scrape_lambda="$norm" ;;
+    esac
     case "$job" in
       *-ec2) want_inst=ec2 ;;
       *-ecs) want_inst=ecs ;;
@@ -237,6 +251,23 @@ for suite in "${SUITES[@]}"; do
       fail "prometheus.yml job '$job' labels instance='$inst', expected '$want_inst' - dashboards split on this label"
     fi
   done < <(prometheus_jobs "$prom")
+
+  # Distinct scrape targets, for the same reason the Artillery hostnames must be
+  # distinct: three jobs pointing at one host would label one platform's series
+  # as all three.
+  for pair in "ec2:ecs:$prom_scrape_ec2:$prom_scrape_ecs" \
+    "ec2:lambda:$prom_scrape_ec2:$prom_scrape_lambda" \
+    "ecs:lambda:$prom_scrape_ecs:$prom_scrape_lambda"; do
+    a="${pair%%:*}"
+    rest="${pair#*:}"
+    b="${rest%%:*}"
+    rest="${rest#*:}"
+    va="${rest%%:*}"
+    vb="${rest#*:}"
+    if [[ -n "$va" && "$va" == "$vb" ]]; then
+      fail "prometheus.yml scrapes '$va' for both $a and $b - one platform's metrics would be labelled as both"
+    fi
+  done
 
   for job in instrumented-metrics-ec2 instrumented-metrics-ecs instrumented-metrics-lambda \
     artillery-metrics-ec2 artillery-metrics-ecs artillery-metrics-lambda; do

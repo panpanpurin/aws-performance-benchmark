@@ -14,11 +14,9 @@ only when working without terraform outputs.
 The placeholder is a literal `REPLACE_ME`, not an empty list, so a suite that was
 never synced fails its scrape loudly instead of looking idle.
 
-Note that `make validate-bench` will **not** catch it here. It rejects a
-`REPLACE_ME` left in an Artillery `target`, and rejects Prometheus targets that
-are empty, but a Prometheus job still holding the placeholder passes. Run `make
-sync-targets`, then confirm on Prometheus → Status → Targets before a run that
-costs money.
+`make validate-bench` rejects three states here: an empty target list, a job
+still holding the placeholder, and two jobs pointing at the same host (which
+would label one platform's series as both). Run `make sync-targets` first.
 
 ## Where to get hostnames
 
